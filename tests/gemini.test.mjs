@@ -15,6 +15,12 @@ const mockChannel = {
 describe("Gemini execution", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        jest.spyOn(console, 'log').mockImplementation(() => { });
+        jest.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
     });
 
     it("spawns gemini and handles auth output", () => {
