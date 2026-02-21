@@ -32,6 +32,8 @@ jobs:
           
       - name: Run Integration Tests
         run: |
+          sed -i 's/\r$//' tests/bin/gemini
+          chmod +x tests/bin/gemini
           npm run test:integration
 
   build-and-push:
