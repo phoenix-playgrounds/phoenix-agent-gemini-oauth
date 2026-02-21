@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+# Mock gemini client
+
+if [ "$1" == "--yolo" ] || [ "$1" == "-p" ] && [ -n "$2" ]; then
+    echo "This is a mock response to your prompt."
+    exit 0
+else
+    echo "Please go to https://accounts.google.com/o/oauth2/mock to authorize"
+    exit 0
+fi
