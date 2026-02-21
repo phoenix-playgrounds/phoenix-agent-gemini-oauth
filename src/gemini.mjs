@@ -1,12 +1,25 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { OutboundAction } from "./agent_connection.mjs";
 
 let activeAuthProcess = null;
-let currentAuthChannel = null;
+let currentConnection = null;
 
-export const executeGeminiAuth = (authChannel) => {
-    currentAuthChannel = authChannel;
+export const executeGeminiAuth = (connection) => {
+    currentConnection = connection;
+
+    if (process.env.MOCKED_GEMINI === '1') {
+        console.log("[MOCK] executeGeminiAuth: Mocking auth success in 1s");
+        setTimeout(() => {
+            if (currentConnection) {
+                currentConnection.sendAuthSuccess();
+                currentConnection = null;
+            }
+        }, 1000);
+        return;
+    }
+
     // gemini login is removed in 0.29+, positional args are prompts.
     // passing an empty prompt will trigger auth if unauthenticated, or just exit quickly.
     activeAuthProcess = spawn('gemini', ['-p', ''], {
@@ -28,8 +41,8 @@ export const executeGeminiAuth = (authChannel) => {
         if (urlMatch && !authUrlExtracted) {
             authUrlExtracted = true;
             const authUrl = urlMatch[0];
-            if (currentAuthChannel) {
-                currentAuthChannel.send({ action: 'url_generated', url: authUrl });
+            if (currentConnection) {
+                currentConnection.sendAction(OutboundAction.URL_GENERATED, { url: authUrl });
             }
         }
     };
@@ -41,11 +54,11 @@ export const executeGeminiAuth = (authChannel) => {
         console.log(`Gemini Auth Process exited with code ${code}`);
         // If code is 42, it means the CLI rejected the empty prompt because it is *already authenticated*
         // and expecting real input. This effectively means authentication is successful!
-        if (currentAuthChannel) {
-            currentAuthChannel.send({ action: 'auth_success', status: 'completed' });
+        if (currentConnection) {
+            currentConnection.sendAuthSuccess();
         }
         activeAuthProcess = null;
-        currentAuthChannel = null;
+        currentConnection = null;
     });
 
     activeAuthProcess.on('error', (err) => {
@@ -54,6 +67,11 @@ export const executeGeminiAuth = (authChannel) => {
 };
 
 export const submitGeminiAuthCode = (code) => {
+    if (process.env.MOCKED_GEMINI === '1') {
+        console.log(`[MOCK] submitGeminiAuthCode called with code: ${code}`);
+        return;
+    }
+
     if (activeAuthProcess && activeAuthProcess.stdin) {
         console.log("Writing auth code to Gemini process...");
         activeAuthProcess.stdin.write((code || '').trim() + '\n');
@@ -63,6 +81,11 @@ export const submitGeminiAuthCode = (code) => {
 };
 
 export const checkGeminiAuthStatus = () => {
+    if (process.env.MOCKED_GEMINI === '1') {
+        console.log("[MOCK] checkGeminiAuthStatus: Returning true");
+        return Promise.resolve(true);
+    }
+
     return new Promise((resolve) => {
         const geminiProcess = spawn('gemini', ['-p', ''], {
             env: { ...process.env, NO_BROWSER: 'true' },
@@ -106,6 +129,16 @@ export const checkGeminiAuthStatus = () => {
 };
 
 export const executeGeminiPrompt = (prompt) => {
+    if (process.env.MOCKED_GEMINI === '1') {
+        console.log(`[MOCK] executeGeminiPrompt: Mocking prompt execution for: ${prompt.substring(0, 50)}...`);
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const timestamp = new Date().toISOString();
+                resolve(`[MOCKED RESPONSE] Hello! The current timestamp is ${timestamp}`);
+            }, 1000);
+        });
+    }
+
     return new Promise((resolve, reject) => {
         const playgroundDir = path.resolve(process.cwd(), 'playground');
         if (!fs.existsSync(playgroundDir)) {

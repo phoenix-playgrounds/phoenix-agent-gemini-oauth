@@ -8,8 +8,11 @@ jest.unstable_mockModule("child_process", () => ({
 
 const { executeGeminiAuth, executeGeminiPrompt, checkGeminiAuthStatus } = await import("../src/gemini.mjs");
 
+import { OutboundAction } from "../src/agent_connection.mjs";
+
 const mockChannel = {
-    send: jest.fn()
+    sendAction: jest.fn(),
+    sendAuthSuccess: jest.fn()
 };
 
 describe("Gemini execution", () => {
@@ -47,10 +50,10 @@ describe("Gemini execution", () => {
         const stdoutCallback = onStdoutData.mock.calls[0][1];
         stdoutCallback(Buffer.from("Please go to https://accounts.google.com/o/oauth2/xxx to authorize"));
 
-        expect(mockChannel.send).toHaveBeenCalledWith({
-            action: "url_generated",
-            url: "https://accounts.google.com/o/oauth2/xxx"
-        });
+        expect(mockChannel.sendAction).toHaveBeenCalledWith(
+            OutboundAction.URL_GENERATED,
+            { url: "https://accounts.google.com/o/oauth2/xxx" }
+        );
     });
 
     it("executes prompt and returns resolved result", async () => {

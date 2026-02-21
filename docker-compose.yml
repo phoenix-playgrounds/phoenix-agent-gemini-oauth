@@ -7,6 +7,6 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=development
-      - WS_URL=${WS_URL:-ws://host.docker.internal:3000/cable}
-      - PLAYGROUND_ID=${PLAYGROUND_ID:-11}
+      - WS_URL=${WS_URL:-ws://host.docker.internal:55556/agent-cable}
       - AGENT_SECRET=${AGENT_SECRET:-SECRET}
+      - MOCKED_GEMINI=${MOCKED_GEMINI:-1}
