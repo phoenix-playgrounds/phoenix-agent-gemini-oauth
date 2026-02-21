@@ -1,0 +1,20 @@
+{
+  "name": "phoenix-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:integration": "node tests/integration.mjs",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@rails/actioncable": "^8.1.200",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "jest": "^29.0.0",
+    "wscat": "^5.0.0"
+  }
+}

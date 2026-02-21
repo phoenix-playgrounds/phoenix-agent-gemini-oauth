@@ -1,0 +1,12 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - WS_URL=${WS_URL:-ws://host.docker.internal:3000/cable}
+      - PLAYGROUND_ID=${PLAYGROUND_ID:-11}
+      - AGENT_SECRET=${AGENT_SECRET:-SECRET}
