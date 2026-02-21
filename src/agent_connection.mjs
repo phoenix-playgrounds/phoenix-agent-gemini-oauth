@@ -40,9 +40,8 @@ export class AgentConnection extends EventEmitter {
 
         this.ws.on('error', (err) => {
             if (err.code === 'ECONNREFUSED') {
-                console.error(`\n❌ Connection refused to Rails server at ${this.wsUrl}`);
-                console.error("Ensuring that Docker compose will retry automatically in a moment...\n");
-                process.exit(1);
+                console.error(`❌ Playground unreachable at ${this.wsUrl}`);
+                setTimeout(() => process.exit(1), 1000);
             } else {
                 console.error("WebSocket Error: ", err);
                 this.emit('error', err);
