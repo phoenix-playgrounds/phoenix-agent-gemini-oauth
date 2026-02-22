@@ -148,19 +148,19 @@ export class GeminiStrategy extends BaseStrategy {
         });
     }
 
-    executePrompt(prompt) {
+    getModelArgs(model) {
+        if (!model) return [];
+        return ['-m', model];
+    }
+
+    executePrompt(prompt, model) {
         return new Promise((resolve, reject) => {
-            const geminiArgs = []
-
-            if(process.env.AGENT_MODEL) {
-                geminiArgs.push('-m', process.env.AGENT_MODEL)
-            }
-
-            geminiArgs = ['--yolo', '-p', prompt]
             const playgroundDir = path.resolve(process.cwd(), 'playground');
             if (!fs.existsSync(playgroundDir)) {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
+
+            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
 
             const geminiProcess = spawn('gemini', geminiArgs, {
                 env: { ...process.env, NO_BROWSER: 'true' },
@@ -183,6 +183,13 @@ export class GeminiStrategy extends BaseStrategy {
                 if (code !== 0) {
                     console.warn(`Gemini process exited with code ${code}`);
                 }
+
+                const modelNotFound = errorResult.includes('ModelNotFoundError') || errorResult.includes('Requested entity was not found');
+                if (modelNotFound) {
+                    reject(new Error(`Invalid model specified. Please check the model name and try again.`));
+                    return;
+                }
+
                 if (outputResult.trim()) {
                     resolve(outputResult);
                 } else if (code !== 0) {

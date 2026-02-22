@@ -35,6 +35,12 @@
     const messages = $("#messages");
     const chatInput = $("#chatInput");
     const submitBtn = $("#submitBtn");
+    const modelSelector = $("#modelSelector");
+    const modelInput = $("#modelInput");
+    const modelOptionsContainer = $("#modelOptions");
+
+    let modelDebounceTimer = null;
+    let currentModel = "";
 
     function connect() {
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -48,6 +54,7 @@
                 clearTimeout(reconnectTimer);
                 reconnectTimer = null;
             }
+            send({ action: "get_model" });
         };
 
         ws.onmessage = (event) => {
@@ -146,6 +153,13 @@
             transition(STATES.AUTHENTICATED);
             return;
         }
+
+        if (data.type === "model_updated") {
+            currentModel = data.model || "";
+            modelInput.value = currentModel;
+            updateModelOptionButtons();
+            return;
+        }
     }
 
     function renderState() {
@@ -153,6 +167,7 @@
         renderAuthModal();
         renderHeaderStatus();
         renderErrorBanner();
+        renderModelSelector();
     }
 
     function renderInput() {
@@ -355,4 +370,53 @@
 
     loadMessages();
     connect();
+    loadModelOptions();
+
+    function loadModelOptions() {
+        fetch("/api/model-options")
+            .then(res => res.json())
+            .then(options => {
+                modelOptionsContainer.innerHTML = "";
+                options.forEach(opt => {
+                    const btn = document.createElement("button");
+                    btn.className = "model-option-btn";
+                    btn.textContent = opt;
+                    btn.addEventListener("click", () => {
+                        const newModel = currentModel === opt ? "" : opt;
+                        modelInput.value = newModel;
+                        sendModelUpdate(newModel);
+                    });
+                    modelOptionsContainer.appendChild(btn);
+                });
+            })
+            .catch(() => { });
+    }
+
+    function sendModelUpdate(model) {
+        currentModel = model;
+        send({ action: "set_model", model });
+        updateModelOptionButtons();
+    }
+
+    function updateModelOptionButtons() {
+        modelOptionsContainer.querySelectorAll(".model-option-btn").forEach(btn => {
+            btn.classList.toggle("active", btn.textContent === currentModel);
+        });
+    }
+
+    function renderModelSelector() {
+        const visible = state === STATES.AUTHENTICATED || state === STATES.AWAITING_RESPONSE;
+        if (visible) {
+            modelSelector.classList.remove("hidden");
+        } else {
+            modelSelector.classList.add("hidden");
+        }
+    }
+
+    modelInput.addEventListener("input", () => {
+        clearTimeout(modelDebounceTimer);
+        modelDebounceTimer = setTimeout(() => {
+            sendModelUpdate(modelInput.value.trim());
+        }, 500);
+    });
 })();

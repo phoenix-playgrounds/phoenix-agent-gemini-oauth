@@ -20,6 +20,12 @@ export const createChatServer = (orchestrator) => {
         res.json(orchestrator.messages.all());
     });
 
+    app.get("/api/model-options", (_req, res) => {
+        const raw = process.env.MODEL_OPTIONS || "";
+        const options = raw.split(",").map(s => s.trim()).filter(Boolean);
+        res.json(options);
+    });
+
     let activeClient = null;
 
     const sendToClient = (type, data = {}) => {

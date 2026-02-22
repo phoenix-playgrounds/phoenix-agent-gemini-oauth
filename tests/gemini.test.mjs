@@ -87,6 +87,68 @@ describe("GeminiStrategy", () => {
         expect(result).toBe("Gemini result here");
     });
 
+    it("passes model args when model is provided", async () => {
+        const onStdoutData = jest.fn();
+        const onStderrData = jest.fn();
+        const callbacks = {};
+        const mockProcess = {
+            stdout: { on: onStdoutData },
+            stderr: { on: onStderrData },
+            on: (event, cb) => {
+                callbacks[event] = cb;
+            }
+        };
+
+        mockSpawn.mockReturnValue(mockProcess);
+
+        const promise = strategy.executePrompt("test prompt", "flash-lite");
+
+        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-m", "flash-lite", "--yolo", "-p", "test prompt"], expect.objectContaining({
+            shell: false
+        }));
+
+        const stdoutCallback = onStdoutData.mock.calls[0][1];
+        stdoutCallback(Buffer.from("result"));
+        callbacks.close(0);
+
+        await promise;
+    });
+
+    it("rejects with friendly error on ModelNotFoundError", async () => {
+        const onStdoutData = jest.fn();
+        const onStderrData = jest.fn();
+        const callbacks = {};
+        const mockProcess = {
+            stdout: { on: onStdoutData },
+            stderr: { on: onStderrData },
+            on: (event, cb) => {
+                callbacks[event] = cb;
+            }
+        };
+
+        mockSpawn.mockReturnValue(mockProcess);
+
+        const promise = strategy.executePrompt("test prompt", "bad-model");
+
+        const stderrCallback = onStderrData.mock.calls[0][1];
+        stderrCallback(Buffer.from("ModelNotFoundError: Requested entity was not found."));
+        callbacks.close(1);
+
+        await expect(promise).rejects.toThrow("Invalid model specified");
+    });
+
+    describe("getModelArgs", () => {
+        it("returns empty array when no model", () => {
+            expect(strategy.getModelArgs("")).toEqual([]);
+            expect(strategy.getModelArgs(null)).toEqual([]);
+            expect(strategy.getModelArgs(undefined)).toEqual([]);
+        });
+
+        it("returns -m flag with model name", () => {
+            expect(strategy.getModelArgs("flash-lite")).toEqual(["-m", "flash-lite"]);
+        });
+    });
+
     describe("checkAuthStatus", () => {
         let onStdoutData, onStderrData, callbacks, mockProcess;
 

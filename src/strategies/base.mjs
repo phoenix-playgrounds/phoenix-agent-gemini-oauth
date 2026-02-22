@@ -19,7 +19,11 @@ export class BaseStrategy {
         throw new Error('Not implemented');
     }
 
-    executePrompt(_prompt) {
+    getModelArgs(_model) {
+        return [];
+    }
+
+    executePrompt(_prompt, _model) {
         throw new Error('Not implemented');
     }
 }

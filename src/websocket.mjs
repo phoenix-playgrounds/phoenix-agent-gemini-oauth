@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { EventEmitter } from "events";
 import { resolveStrategy } from "./strategies/index.mjs";
 import { MessageStore } from "./message_store.mjs";
+import { ModelStore } from "./model_store.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.resolve(__dirname, "../SYSTEM_PROMPT.md");
@@ -13,6 +14,7 @@ export class Orchestrator extends EventEmitter {
         super();
         this.strategy = resolveStrategy();
         this.messages = new MessageStore();
+        this.modelStore = new ModelStore();
         this.isAuthenticated = false;
         this.isProcessing = false;
         this._ready = this._initAuthStatus();
@@ -41,6 +43,10 @@ export class Orchestrator extends EventEmitter {
             await this._handleReauthenticate();
         } else if (action === "send_chat_message") {
             await this._handleChatMessage(msg.text);
+        } else if (action === "get_model") {
+            this._handleGetModel();
+        } else if (action === "set_model") {
+            this._handleSetModel(msg.model);
         } else {
             console.warn(`[Orchestrator] Unknown action: ${action}`);
         }
@@ -108,7 +114,8 @@ export class Orchestrator extends EventEmitter {
         try {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf8");
             const fullPrompt = this._buildPromptWithContext(systemPrompt, text);
-            const result = await this.strategy.executePrompt(fullPrompt);
+            const model = this.modelStore.get();
+            const result = await this.strategy.executePrompt(fullPrompt, model);
             const assistantMessage = this.messages.add("assistant", result);
             this._send("message", assistantMessage);
         } catch (err) {
@@ -143,5 +150,14 @@ export class Orchestrator extends EventEmitter {
             sendAuthStatus: (status) => this._send("auth_status", { status }),
             sendError: (message) => this._send("error", { message })
         };
+    }
+
+    _handleGetModel() {
+        this._send("model_updated", { model: this.modelStore.get() });
+    }
+
+    _handleSetModel(model) {
+        const value = this.modelStore.set(model);
+        this._send("model_updated", { model: value });
     }
 }

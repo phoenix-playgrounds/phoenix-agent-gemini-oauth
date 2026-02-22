@@ -6,6 +6,7 @@ const mockSubmitAuthCode = jest.fn();
 const mockCancelAuth = jest.fn();
 const mockClearCredentials = jest.fn();
 const mockExecutePrompt = jest.fn();
+const mockGetModelArgs = jest.fn().mockReturnValue([]);
 
 jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
     resolveStrategy: () => ({
@@ -14,7 +15,8 @@ jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
         submitAuthCode: mockSubmitAuthCode,
         cancelAuth: mockCancelAuth,
         clearCredentials: mockClearCredentials,
-        executePrompt: mockExecutePrompt
+        executePrompt: mockExecutePrompt,
+        getModelArgs: mockGetModelArgs
     })
 }));
 
@@ -33,6 +35,14 @@ jest.unstable_mockModule("../src/message_store.mjs", () => {
     };
 });
 
+let mockModelValue = "";
+jest.unstable_mockModule("../src/model_store.mjs", () => ({
+    ModelStore: class {
+        get() { return mockModelValue; }
+        set(model) { mockModelValue = (model || "").trim(); return mockModelValue; }
+    }
+}));
+
 const { Orchestrator } = await import("../src/websocket.mjs");
 
 describe("Orchestrator", () => {
@@ -44,6 +54,7 @@ describe("Orchestrator", () => {
         jest.spyOn(console, "log").mockImplementation(() => { });
         jest.spyOn(console, "warn").mockImplementation(() => { });
         jest.spyOn(console, "error").mockImplementation(() => { });
+        mockModelValue = "";
 
         outboundMessages = [];
         orchestrator = new Orchestrator();
@@ -178,6 +189,29 @@ describe("Orchestrator", () => {
             await orchestrator.handleClientMessage({ action: "initiate_auth" });
             expect(orchestrator.isAuthenticated).toBe(true);
             expect(outboundMessages).toEqual([{ type: "auth_success" }]);
+        });
+    });
+
+    describe("get_model", () => {
+        it("sends current model", async () => {
+            mockModelValue = "flash-lite";
+            await orchestrator.handleClientMessage({ action: "get_model" });
+            expect(outboundMessages).toEqual([{ type: "model_updated", model: "flash-lite" }]);
+        });
+    });
+
+    describe("set_model", () => {
+        it("sets model and sends update", async () => {
+            await orchestrator.handleClientMessage({ action: "set_model", model: "pro" });
+            expect(mockModelValue).toBe("pro");
+            expect(outboundMessages).toEqual([{ type: "model_updated", model: "pro" }]);
+        });
+
+        it("clears model with empty string", async () => {
+            mockModelValue = "flash";
+            await orchestrator.handleClientMessage({ action: "set_model", model: "" });
+            expect(mockModelValue).toBe("");
+            expect(outboundMessages).toEqual([{ type: "model_updated", model: "" }]);
         });
     });
 });
