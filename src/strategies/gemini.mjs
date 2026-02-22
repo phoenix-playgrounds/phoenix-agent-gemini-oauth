@@ -1,12 +1,9 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { BaseStrategy } from "./base.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GEMINI_CONFIG_DIR = path.join(process.env.HOME || '/home/node', '.gemini');
-const SYSTEM_PROMPT_PATH = path.resolve(__dirname, '../../SYSTEM_PROMPT.md');
 
 export class GeminiStrategy extends BaseStrategy {
     constructor() {
@@ -159,7 +156,7 @@ export class GeminiStrategy extends BaseStrategy {
             }
 
             const geminiProcess = spawn('gemini', ['--yolo', prompt], {
-                env: { ...process.env, NO_BROWSER: 'true', GEMINI_SYSTEM_MD: SYSTEM_PROMPT_PATH },
+                env: { ...process.env, NO_BROWSER: 'true' },
                 cwd: playgroundDir,
                 shell: false
             });

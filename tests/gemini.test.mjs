@@ -75,8 +75,7 @@ describe("GeminiStrategy", () => {
         const promise = strategy.executePrompt("test prompt");
 
         expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "test prompt"], expect.objectContaining({
-            shell: false,
-            env: expect.objectContaining({ GEMINI_SYSTEM_MD: expect.any(String) })
+            shell: false
         }));
 
         const stdoutCallback = onStdoutData.mock.calls[0][1];
