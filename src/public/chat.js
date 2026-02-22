@@ -131,9 +131,18 @@
             return;
         }
 
+        if (data.type === "message") {
+            if (data.role === "assistant") {
+                clearResponseTimer();
+                transition(STATES.AUTHENTICATED);
+            }
+            renderMessage(data);
+            return;
+        }
+
         if (data.type === "chat_message_in") {
             clearResponseTimer();
-            renderMessage({ role: "system", body: data.text, created_at: new Date().toISOString() });
+            renderMessage({ role: "assistant", body: data.text, created_at: new Date().toISOString() });
             transition(STATES.AUTHENTICATED);
             return;
         }
@@ -301,7 +310,6 @@
         if (!text) return;
 
         chatInput.value = "";
-        renderMessage({ role: "user", body: text, created_at: new Date().toISOString() });
         transition(STATES.AWAITING_RESPONSE);
         startResponseTimer();
         send({ action: "send_chat_message", text });
@@ -327,6 +335,17 @@
         transition(STATES.AUTHENTICATED);
     }
 
+    async function loadMessages() {
+        try {
+            const res = await fetch("/api/messages");
+            const data = await res.json();
+            messages.innerHTML = "";
+            data.forEach(renderMessage);
+        } catch {
+            console.error("[Chat] Failed to load message history");
+        }
+    }
+
     chatInput.addEventListener("keydown", submitMessage);
     submitBtn.addEventListener("click", submitMessage);
     dismissError.addEventListener("click", handleDismissError);
@@ -334,5 +353,6 @@
     modalBackdrop.addEventListener("click", cancelAuth);
     authCodeSubmitBtn.addEventListener("click", submitAuthCode);
 
+    loadMessages();
     connect();
 })();

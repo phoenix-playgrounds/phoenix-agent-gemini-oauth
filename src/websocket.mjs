@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { EventEmitter } from "events";
 import { resolveStrategy } from "./strategies/index.mjs";
+import { MessageStore } from "./message_store.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.resolve(__dirname, "../SYSTEM_PROMPT.md");
@@ -11,6 +12,7 @@ export class Orchestrator extends EventEmitter {
     constructor() {
         super();
         this.strategy = resolveStrategy();
+        this.messages = new MessageStore();
         this.isAuthenticated = false;
         this.isProcessing = false;
         this._ready = this._initAuthStatus();
@@ -100,16 +102,35 @@ export class Orchestrator extends EventEmitter {
         console.log("[Orchestrator] send_chat_message");
         this.isProcessing = true;
 
+        const userMessage = this.messages.add("user", text);
+        this._send("message", userMessage);
+
         try {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf8");
-            const fullPrompt = `${systemPrompt}\n\n${text}`;
+            const fullPrompt = this._buildPromptWithContext(systemPrompt, text);
             const result = await this.strategy.executePrompt(fullPrompt);
-            this._send("chat_message_in", { text: result });
+            const assistantMessage = this.messages.add("assistant", result);
+            this._send("message", assistantMessage);
         } catch (err) {
             this._send("error", { message: err.message });
         } finally {
             this.isProcessing = false;
         }
+    }
+
+    _buildPromptWithContext(systemPrompt, currentMessage) {
+        const history = this.messages.all();
+        const pastMessages = history.slice(0, -1);
+
+        if (pastMessages.length === 0) {
+            return `${systemPrompt}\n\n${currentMessage}`;
+        }
+
+        const contextLines = pastMessages.map((m) =>
+            `[${m.role.toUpperCase()}]: ${m.body}`
+        ).join("\n");
+
+        return `${systemPrompt}\n\n--- CONVERSATION HISTORY ---\n${contextLines}\n--- END HISTORY ---\n\n--- CURRENT MESSAGE ---\n${currentMessage}\n--- END CURRENT MESSAGE ---`;
     }
 
     _createStrategyBridge() {

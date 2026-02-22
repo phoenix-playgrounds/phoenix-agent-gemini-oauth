@@ -18,6 +18,21 @@ jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
     })
 }));
 
+jest.unstable_mockModule("../src/message_store.mjs", () => {
+    let messages = [];
+    return {
+        MessageStore: class {
+            all() { return messages; }
+            add(role, body) {
+                const msg = { id: "uuid-" + messages.length, role, body, created_at: new Date().toISOString() };
+                messages.push(msg);
+                return msg;
+            }
+            clear() { messages = []; }
+        }
+    };
+});
+
 const { Orchestrator } = await import("../src/websocket.mjs");
 
 describe("Orchestrator", () => {
@@ -120,11 +135,18 @@ describe("Orchestrator", () => {
             expect(outboundMessages).toEqual([{ type: "error", message: "BLOCKED" }]);
         });
 
-        it("sends chat_message_in on success", async () => {
+        it("persists user and assistant messages on success", async () => {
             orchestrator.isAuthenticated = true;
             mockExecutePrompt.mockResolvedValue("AI response");
             await orchestrator.handleClientMessage({ action: "send_chat_message", text: "hello" });
-            expect(outboundMessages).toEqual([{ type: "chat_message_in", text: "AI response" }]);
+            expect(outboundMessages.length).toBe(2);
+            expect(outboundMessages[0].type).toBe("message");
+            expect(outboundMessages[0].role).toBe("user");
+            expect(outboundMessages[0].body).toBe("hello");
+            expect(outboundMessages[0].id).toBeDefined();
+            expect(outboundMessages[1].type).toBe("message");
+            expect(outboundMessages[1].role).toBe("assistant");
+            expect(outboundMessages[1].body).toBe("AI response");
             expect(orchestrator.isProcessing).toBe(false);
         });
 
@@ -132,7 +154,8 @@ describe("Orchestrator", () => {
             orchestrator.isAuthenticated = true;
             mockExecutePrompt.mockRejectedValue(new Error("CLI failed"));
             await orchestrator.handleClientMessage({ action: "send_chat_message", text: "hello" });
-            expect(outboundMessages).toEqual([{ type: "error", message: "CLI failed" }]);
+            const errorMsg = outboundMessages.find(m => m.type === "error");
+            expect(errorMsg.message).toBe("CLI failed");
             expect(orchestrator.isProcessing).toBe(false);
         });
     });

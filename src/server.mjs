@@ -16,6 +16,10 @@ export const createChatServer = (orchestrator) => {
 
     app.use(express.static(path.join(__dirname, "public")));
 
+    app.get("/api/messages", (_req, res) => {
+        res.json(orchestrator.messages.all());
+    });
+
     let activeClient = null;
 
     const sendToClient = (type, data = {}) => {

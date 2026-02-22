@@ -56,11 +56,15 @@ const run = async () => {
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    const chatResponse = messages.find((m) => m.type === "chat_message_in");
-    if (!chatResponse || !chatResponse.text) {
-        throw new Error(`Expected chat_message_in, got: ${JSON.stringify(messages)}`);
+    const chatResponse = messages.find((m) => m.type === "message" && m.role === "assistant");
+    if (!chatResponse || !chatResponse.body) {
+        throw new Error(`Expected message with role=assistant, got: ${JSON.stringify(messages)}`);
     }
-    console.log(`✅ Chat response: ${chatResponse.text}`);
+    console.log(`✅ Chat response: ${chatResponse.body}`);
+    if (!chatResponse.id || !chatResponse.created_at) {
+        throw new Error("Message missing id or created_at");
+    }
+    console.log(`✅ Message has UUID (${chatResponse.id}) and timestamp (${chatResponse.created_at})`);
 
     ws.close();
     cleanup();
