@@ -129,10 +129,15 @@ export class OpenaiCodexStrategy extends BaseStrategy {
             });
 
             codexProcess.on('close', (code) => {
-                if (code === 0) {
+                if (code !== 0) {
+                    console.warn(`Codex process exited with code ${code}`);
+                }
+                if (outputResult.trim()) {
                     resolve(outputResult);
+                } else if (code !== 0) {
+                    reject(new Error(errorResult || `Process exited with code ${code}`));
                 } else {
-                    reject(new Error(errorResult || 'Process exited with non-zero code'));
+                    resolve(outputResult);
                 }
             });
 

@@ -173,10 +173,15 @@ export class GeminiStrategy extends BaseStrategy {
             });
 
             geminiProcess.on('close', (code) => {
-                if (code === 0) {
+                if (code !== 0) {
+                    console.warn(`Gemini process exited with code ${code}`);
+                }
+                if (outputResult.trim()) {
                     resolve(outputResult);
+                } else if (code !== 0) {
+                    reject(new Error(errorResult || `Process exited with code ${code}`));
                 } else {
-                    reject(new Error(errorResult || 'Process exited with non-zero code'));
+                    resolve(outputResult);
                 }
             });
 
