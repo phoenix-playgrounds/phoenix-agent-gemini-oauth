@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        AGENT_PROVIDER: ${AGENT_PROVIDER:-mock}
     init: true
     restart: always
     ports:
