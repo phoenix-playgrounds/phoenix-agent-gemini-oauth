@@ -17,7 +17,7 @@ export class GeminiStrategy extends BaseStrategy {
 
         // gemini login is removed in 0.29+, positional args are prompts.
         // passing an empty prompt will trigger auth if unauthenticated, or just exit quickly.
-        this.activeAuthProcess = spawn('gemini', [''], {
+        this.activeAuthProcess = spawn('gemini', ['-p', ''], {
             env: { ...process.env, NO_BROWSER: 'true' },
             shell: false
         });
@@ -107,7 +107,7 @@ export class GeminiStrategy extends BaseStrategy {
 
     checkAuthStatus() {
         return new Promise((resolve) => {
-            const geminiProcess = spawn('gemini', [''], {
+            const geminiProcess = spawn('gemini', ['-p', ''], {
                 env: { ...process.env, NO_BROWSER: 'true' },
                 shell: false
             });
@@ -150,12 +150,19 @@ export class GeminiStrategy extends BaseStrategy {
 
     executePrompt(prompt) {
         return new Promise((resolve, reject) => {
+            const geminiArgs = []
+
+            if(process.env.AGENT_MODEL) {
+                geminiArgs.push('-m', process.env.AGENT_MODEL)
+            }
+
+            geminiArgs = ['--yolo', '-p', prompt]
             const playgroundDir = path.resolve(process.cwd(), 'playground');
             if (!fs.existsSync(playgroundDir)) {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const geminiProcess = spawn('gemini', ['--yolo', prompt], {
+            const geminiProcess = spawn('gemini', geminiArgs, {
                 env: { ...process.env, NO_BROWSER: 'true' },
                 cwd: playgroundDir,
                 shell: false

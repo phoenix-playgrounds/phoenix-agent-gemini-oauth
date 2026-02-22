@@ -45,7 +45,7 @@ describe("GeminiStrategy", () => {
 
         strategy.executeAuth(mockChannel);
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", [""], expect.objectContaining({
+        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-p", ""], expect.objectContaining({
             shell: false,
             env: expect.objectContaining({ NO_BROWSER: 'true' })
         }));
@@ -74,7 +74,7 @@ describe("GeminiStrategy", () => {
 
         const promise = strategy.executePrompt("test prompt");
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "test prompt"], expect.objectContaining({
+        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "-p", "test prompt"], expect.objectContaining({
             shell: false
         }));
 
@@ -118,7 +118,7 @@ describe("GeminiStrategy", () => {
             if (callbacks.close) callbacks.close(0);
 
             await expect(resultPromise).resolves.toBe(true);
-            expect(mockSpawn).toHaveBeenCalledWith("gemini", [""], expect.objectContaining({ shell: false }));
+            expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-p", ""], expect.objectContaining({ shell: false }));
         });
 
         it("resolves false if auth url is printed", async () => {
