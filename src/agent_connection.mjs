@@ -101,6 +101,8 @@ export class AgentConnection extends EventEmitter {
             this.emit('start_auth');
         } else if (payload.auth_code) {
             this.emit('auth_code', payload.auth_code);
+        } else if (payload.cancel_auth) {
+            this.emit('cancel_auth');
         } else if (payload.prompt) {
             this.emit('prompt', payload.prompt);
         } else {

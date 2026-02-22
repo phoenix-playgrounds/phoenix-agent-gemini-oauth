@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { executeGeminiAuth, executeGeminiPrompt, submitGeminiAuthCode, checkGeminiAuthStatus } from "./gemini.mjs";
+import { executeGeminiAuth, executeGeminiPrompt, submitGeminiAuthCode, checkGeminiAuthStatus, cancelGeminiAuth } from "./gemini.mjs";
 import { AgentConnection } from "./agent_connection.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +62,13 @@ export const createActionCableConsumer = () => {
     connection.on('auth_code', (auth_code) => {
         console.log(`Received auth_code. Submitting to Gemini process...`);
         submitGeminiAuthCode(auth_code);
+    });
+
+    connection.on('cancel_auth', () => {
+        console.log("Received cancel_auth instruction! Terminating auth...");
+        cancelGeminiAuth();
+        isAuthenticated = false;
+        connection.sendAuthStatusResponse('NEED_AUTH');
     });
 
     connection.on('prompt', async (promptText) => {

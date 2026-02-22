@@ -52,10 +52,14 @@ export const executeGeminiAuth = (connection) => {
 
     activeAuthProcess.on('close', (code) => {
         console.log(`Gemini Auth Process exited with code ${code}`);
-        // If code is 42, it means the CLI rejected the empty prompt because it is *already authenticated*
-        // and expecting real input. This effectively means authentication is successful!
         if (currentConnection) {
-            currentConnection.sendAuthSuccess();
+            if (code === 0 || code === 42) {
+                currentConnection.sendAuthSuccess();
+            } else {
+                console.error(`Gemini Auth failed with exit code ${code}`);
+                currentConnection.sendAuthStatusResponse('NEED_AUTH');
+                currentConnection.sendStatusResponse('WAITING');
+            }
         }
         activeAuthProcess = null;
         currentConnection = null;
@@ -64,6 +68,15 @@ export const executeGeminiAuth = (connection) => {
     activeAuthProcess.on('error', (err) => {
         console.error('Gemini Auth Process error:', err);
     });
+};
+
+export const cancelGeminiAuth = () => {
+    if (activeAuthProcess) {
+        console.log("Cancelling Gemini Auth process...");
+        activeAuthProcess.kill();
+        activeAuthProcess = null;
+        currentConnection = null;
+    }
 };
 
 export const submitGeminiAuthCode = (code) => {
