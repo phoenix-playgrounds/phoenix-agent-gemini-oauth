@@ -1,105 +1,99 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { executeGeminiAuth, executeGeminiPrompt, submitGeminiAuthCode, checkGeminiAuthStatus, cancelGeminiAuth } from "./gemini.mjs";
+import { executeGeminiAuth, executeGeminiPrompt, submitGeminiAuthCode, checkGeminiAuthStatus, cancelGeminiAuth, clearGeminiCredentials } from "./gemini.mjs";
 import { AgentConnection } from "./agent_connection.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.resolve(__dirname, "../SYSTEM_PROMPT.md");
+
+const PING_INTERVAL_MS = 15_000;
 
 export const createActionCableConsumer = () => {
     const connection = new AgentConnection();
 
     let isAuthenticated = false;
     let isProcessing = false;
-    let heartbeatInterval = null;
+    let pingInterval = null;
 
     connection.on('connected', async () => {
-        // 1. Immediately send initial known statuses so the UI updates right away
-        connection.sendStatusResponse(isProcessing ? 'BLOCKED' : 'WAITING');
-        connection.sendAuthStatusResponse(isAuthenticated ? 'READY' : 'NEED_AUTH');
-
-        // 2. Check initial auth status (takes ~1-2 seconds)
         isAuthenticated = await checkGeminiAuthStatus();
+        connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
 
-        // 3. Send updated auth status if it changed
-        connection.sendAuthStatusResponse(isAuthenticated ? 'READY' : 'NEED_AUTH');
-
-        // 4. Set up heartbeat to keep Rails updated
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(() => {
-            connection.sendStatusResponse(isProcessing ? 'BLOCKED' : 'WAITING');
-            connection.sendAuthStatusResponse(isAuthenticated ? 'READY' : 'NEED_AUTH');
-        }, 30000); // 30 seconds
+        if (pingInterval) clearInterval(pingInterval);
+        pingInterval = setInterval(() => {
+            connection.sendPing();
+        }, PING_INTERVAL_MS);
     });
 
-    connection.on('request_status', () => {
-        connection.sendStatusResponse(isProcessing ? 'BLOCKED' : 'WAITING');
+    connection.on('check_auth_status', async () => {
+        isAuthenticated = await checkGeminiAuthStatus();
+        connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
     });
 
-    connection.on('request_auth_status', () => {
-        connection.sendAuthStatusResponse(isAuthenticated ? 'READY' : 'NEED_AUTH');
-    });
-
-    connection.on('request_full_status', () => {
-        connection.sendStatusResponse(isProcessing ? 'BLOCKED' : 'WAITING');
-        connection.sendAuthStatusResponse(isAuthenticated ? 'READY' : 'NEED_AUTH');
-    });
-
-    connection.on('start_auth', async () => {
-        console.log("Received start_auth instruction! Checking auth status...");
+    connection.on('initiate_auth', async () => {
+        console.log("Received initiate_auth. Checking auth status...");
         const currentlyAuthenticated = await checkGeminiAuthStatus();
         if (currentlyAuthenticated) {
-            console.log("Already authenticated! Sending auth_success immediately...");
+            console.log("Already authenticated! Sending auth_success...");
             isAuthenticated = true;
             connection.sendAuthSuccess();
         } else {
-            console.log("Not authenticated. Executing Gemini Auth...");
+            console.log("Not authenticated. Starting Gemini Auth...");
             executeGeminiAuth(connection);
         }
     });
 
-    connection.on('auth_code', (auth_code) => {
-        console.log(`Received auth_code. Submitting to Gemini process...`);
-        submitGeminiAuthCode(auth_code);
+    connection.on('submit_auth_code', (code) => {
+        console.log("Received submit_auth_code. Submitting to Gemini process...");
+        submitGeminiAuthCode(code);
     });
 
     connection.on('cancel_auth', () => {
-        console.log("Received cancel_auth instruction! Terminating auth...");
+        console.log("Received cancel_auth. Terminating auth sub-process...");
         cancelGeminiAuth();
         isAuthenticated = false;
-        connection.sendAuthStatusResponse('NEED_AUTH');
+        connection.sendAuthStatus('unauthenticated');
     });
 
-    connection.on('prompt', async (promptText) => {
+    connection.on('reauthenticate', async () => {
+        console.log("Received reauthenticate. Clearing credentials and restarting auth...");
+        cancelGeminiAuth();
+        clearGeminiCredentials();
+        isAuthenticated = false;
+        connection.sendAuthStatus('unauthenticated');
+        executeGeminiAuth(connection);
+    });
+
+    connection.on('send_chat_message', async (text) => {
         if (!isAuthenticated) {
-            console.log(`Prompt rejected: NEED_AUTH`);
-            connection.sendPromptFailed('NEED_AUTH');
+            console.log("Chat message rejected: NEED_AUTH");
+            connection.sendError('NEED_AUTH');
             return;
         }
         if (isProcessing) {
-            console.log(`Prompt rejected: BLOCKED`);
-            connection.sendPromptFailed('BLOCKED');
+            console.log("Chat message rejected: BLOCKED");
+            connection.sendError('BLOCKED');
             return;
         }
-        console.log(`Received prompt. Executing Gemini...`);
+        console.log("Received chat message. Executing Gemini...");
         isProcessing = true;
 
         try {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
-            const fullPrompt = `${systemPrompt}\n\n${promptText}`;
+            const fullPrompt = `${systemPrompt}\n\n${text}`;
 
             const result = await executeGeminiPrompt(fullPrompt);
-            connection.sendPromptCompleted(result);
+            connection.sendChatMessageIn(result);
         } catch (err) {
-            connection.sendPromptFailed(err.message);
+            connection.sendError(err.message);
         } finally {
             isProcessing = false;
         }
     });
 
     connection.on('close', () => {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (pingInterval) clearInterval(pingInterval);
     });
 
     connection.connect();

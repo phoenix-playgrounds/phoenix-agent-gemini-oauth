@@ -2,14 +2,12 @@ import WebSocket from "ws";
 import { EventEmitter } from "events";
 
 export const OutboundAction = {
-    STATUS_RESPONSE: "status_response",
-    AUTH_STATUS_RESPONSE: "auth_status_response",
-    CHANGE_STATUS: "change_status",
-    URL_GENERATED: "url_generated",
+    PING: "ping",
+    AUTH_STATUS: "auth_status",
+    AUTH_URL_GENERATED: "auth_url_generated",
     AUTH_SUCCESS: "auth_success",
-    PROMPT_COMPLETED: "prompt_completed",
-    PROMPT_FAILED: "prompt_failed",
-    ADD_MESSAGE: "add_message"
+    CHAT_MESSAGE_IN: "chat_message_in",
+    ERROR: "error"
 };
 
 export class AgentConnection extends EventEmitter {
@@ -17,133 +15,132 @@ export class AgentConnection extends EventEmitter {
         super();
         this.wsUrl = process.env.WS_URL || 'ws://localhost:8080/cable';
         this.agentSecret = process.env.AGENT_SECRET ? String(process.env.AGENT_SECRET) : undefined;
-
-        if (!this.agentSecret) {
-            console.warn("⚠️ Warning: AGENT_SECRET is not set in environment! Agent will fail to authenticate with the Rails server.");
-        }
+        this.ws = null;
+        this._subscribed = false;
     }
 
     connect() {
-        console.log(`Connecting to WS_URL: ${this.wsUrl}`);
         this.ws = new WebSocket(this.wsUrl);
 
         this.ws.on('open', () => {
             console.log(`Connected to ActionCable at ${this.wsUrl}`);
         });
 
-        this.ws.on('message', (data) => this._handleMessage(data));
+        this.ws.on('message', (raw) => {
+            let data;
+            try {
+                data = JSON.parse(raw.toString());
+            } catch {
+                console.error(`[WS] Failed to parse message: ${raw}`);
+                return;
+            }
+
+            const msgType = data.type || data.type;
+            console.log(`[WS RECV] msgType=${msgType} data=${JSON.stringify(data)}`);
+
+            if (msgType === 'welcome') {
+                console.log('Received welcome message. Subscribing to AgentChannel...');
+                this._subscribe();
+            } else if (msgType === 'confirm_subscription') {
+                console.log('✅ Subscription confirmed by Rails!');
+                this._subscribed = true;
+                this.emit('connected');
+            } else if (msgType === 'reject_subscription') {
+                console.error('❌ Subscription rejected by Rails server! Check if AGENT_SECRET matches the database.');
+                this.ws.close();
+            } else if (msgType === 'ping') {
+                // ActionCable keep-alive ping, ignore
+            } else if (data.message) {
+                this._handleInstruction(data.message);
+            }
+        });
 
         this.ws.on('close', () => {
-            console.log("WebSocket Connection Closed.");
+            console.log('WebSocket Connection Closed.');
+            this._subscribed = false;
             this.emit('close');
         });
 
         this.ws.on('error', (err) => {
             if (err.code === 'ECONNREFUSED') {
-                console.error(`❌ Playground unreachable at ${this.wsUrl}`);
-                setTimeout(() => process.exit(1), 1000);
+                console.error(`Connection refused at ${this.wsUrl}. Is the Rails server running?`);
             } else {
-                console.error("WebSocket Error: ", err);
-                this.emit('error', err);
+                console.error(`WebSocket Error: ${err.message}`);
             }
         });
+    }
 
-        return this.ws;
+    _subscribe() {
+        const identifier = JSON.stringify(this._getChannelIdentifier());
+        this.ws.send(JSON.stringify({
+            command: 'subscribe',
+            identifier: identifier
+        }));
     }
 
     _getChannelIdentifier() {
         return {
-            channel: "AuthChannel",
+            channel: "AgentChannel",
             agent_secret: this.agentSecret
         };
     }
 
-    _handleMessage(data) {
-        let message;
-        try {
-            message = JSON.parse(data.toString());
-            if (message.type !== "ping") {
-                console.log(`[WS RECV] msgType=${message.type || 'data'} data=${JSON.stringify(message.message || message)}`);
-            }
-        } catch {
-            console.error(`[WS RECV ERROR] Received invalid JSON over websocket: ${data.toString()}`);
+    sendAction(action, data = {}) {
+        if (!this._subscribed) {
+            console.warn(`Cannot send action '${action}': not subscribed`);
             return;
         }
-
-        if (message.type === "welcome") {
-            console.log("Received welcome message. Subscribing to AuthChannel...");
-            this.ws.send(JSON.stringify({
-                command: "subscribe",
-                identifier: JSON.stringify(this._getChannelIdentifier())
-            }));
-        } else if (message.type === "confirm_subscription") {
-            console.log("Subscription confirmed! Waiting for instructions...");
-            this.emit('connected');
-        } else if (message.type === "reject_subscription") {
-            console.error("❌ Subscription rejected by Rails server! Check if AGENT_SECRET matches the database.");
-            this.ws.close();
-        } else if (message.type === "ping") {
-            // Ignore ping messages
-            return;
-        } else if (message.message) {
-            this._handleInstruction(message.message);
-        }
-    }
-
-    _handleInstruction(payload) {
-        if (payload.type === 'STATUS' || payload.status) {
-            this.emit('request_status');
-        } else if (payload.type === 'AUTH_STATUS' || payload.auth_status) {
-            this.emit('request_auth_status');
-        } else if (payload.check_status) {
-            this.emit('request_full_status');
-        } else if (payload.start_auth) {
-            this.emit('start_auth');
-        } else if (payload.auth_code) {
-            this.emit('auth_code', payload.auth_code);
-        } else if (payload.cancel_auth) {
-            this.emit('cancel_auth');
-        } else if (payload.prompt) {
-            this.emit('prompt', payload.prompt);
-        } else {
-            console.log(`[WS] Unhandled payload: ${JSON.stringify(payload)}`);
-        }
-    }
-
-    // --- Outbound Methods ---
-
-    sendAction(action, payload = {}) {
-        const messagePayload = {
-            command: "message",
-            identifier: JSON.stringify(this._getChannelIdentifier()),
-            data: JSON.stringify({ action, ...payload })
+        const identifier = JSON.stringify(this._getChannelIdentifier());
+        const payload = {
+            command: 'message',
+            identifier: identifier,
+            data: JSON.stringify({ action, ...data })
         };
-        console.log(`[WS SEND] action=${action} payload=${JSON.stringify(payload)}`);
-
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(messagePayload));
-        } else {
-            console.warn(`[WS SEND WARNING] Cannot send message, WebSocket is not open.`);
-        }
+        console.log(`[WS SEND] action=${action} data=${JSON.stringify(data)}`);
+        this.ws.send(JSON.stringify(payload));
     }
 
-    sendStatusResponse(status) {
-        this.sendAction(OutboundAction.STATUS_RESPONSE, { status });
+    sendPing() {
+        this.sendAction(OutboundAction.PING);
     }
 
-    sendAuthStatusResponse(status) {
-        this.sendAction(OutboundAction.AUTH_STATUS_RESPONSE, { status });
+    sendAuthStatus(status) {
+        this.sendAction(OutboundAction.AUTH_STATUS, { status });
+    }
+
+    sendAuthUrlGenerated(url) {
+        this.sendAction(OutboundAction.AUTH_URL_GENERATED, { url });
     }
 
     sendAuthSuccess() {
-        this.sendAction(OutboundAction.AUTH_SUCCESS, { status: 'completed' });
+        this.sendAction(OutboundAction.AUTH_SUCCESS);
     }
 
-    sendPromptCompleted(result) {
-        this.sendAction(OutboundAction.PROMPT_COMPLETED, { result });
+    sendChatMessageIn(text) {
+        this.sendAction(OutboundAction.CHAT_MESSAGE_IN, { text });
     }
 
-    sendPromptFailed(error) {
-        this.sendAction(OutboundAction.PROMPT_FAILED, { error });
+    sendError(message) {
+        this.sendAction(OutboundAction.ERROR, { message });
+    }
+
+    _handleInstruction(payload) {
+        console.log(`[INSTRUCTION] ${JSON.stringify(payload)}`);
+
+        if (payload.action === 'initiate_auth') {
+            this.emit('initiate_auth');
+        } else if (payload.action === 'submit_auth_code') {
+            this.emit('submit_auth_code', payload.code);
+        } else if (payload.action === 'cancel_auth') {
+            this.emit('cancel_auth');
+        } else if (payload.action === 'reauthenticate') {
+            this.emit('reauthenticate');
+        } else if (payload.action === 'check_auth_status') {
+            this.emit('check_auth_status');
+        } else if (payload.action === 'send_chat_message') {
+            this.emit('send_chat_message', payload.text);
+        } else {
+            console.warn(`Unknown instruction: ${JSON.stringify(payload)}`);
+        }
     }
 }

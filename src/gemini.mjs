@@ -1,7 +1,8 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
-import { OutboundAction } from "./agent_connection.mjs";
+
+const GEMINI_CONFIG_DIR = path.join(process.env.HOME || '/home/node', '.gemini');
 
 let activeAuthProcess = null;
 let currentConnection = null;
@@ -42,7 +43,7 @@ export const executeGeminiAuth = (connection) => {
             authUrlExtracted = true;
             const authUrl = urlMatch[0];
             if (currentConnection) {
-                currentConnection.sendAction(OutboundAction.URL_GENERATED, { url: authUrl });
+                currentConnection.sendAuthUrlGenerated(authUrl);
             }
         }
     };
@@ -57,8 +58,7 @@ export const executeGeminiAuth = (connection) => {
                 currentConnection.sendAuthSuccess();
             } else {
                 console.error(`Gemini Auth failed with exit code ${code}`);
-                currentConnection.sendAuthStatusResponse('NEED_AUTH');
-                currentConnection.sendStatusResponse('WAITING');
+                currentConnection.sendAuthStatus('unauthenticated');
             }
         }
         activeAuthProcess = null;
@@ -91,6 +91,34 @@ export const submitGeminiAuthCode = (code) => {
     } else {
         console.error("No active Gemini authentication process found to submit code to.");
     }
+};
+
+export const clearGeminiCredentials = () => {
+    if (process.env.MOCKED_GEMINI === '1') {
+        console.log("[MOCK] clearGeminiCredentials: Skipping credential deletion");
+        return;
+    }
+
+    const credentialFiles = ['oauth_creds.json', 'credentials.json', '.credentials.json'];
+
+    for (const file of credentialFiles) {
+        const filePath = path.join(GEMINI_CONFIG_DIR, file);
+        if (fs.existsSync(filePath)) {
+            console.log(`Deleting credential file: ${filePath}`);
+            fs.unlinkSync(filePath);
+        }
+    }
+
+    const configSubDirs = ['Configure', 'auth'];
+    for (const dir of configSubDirs) {
+        const dirPath = path.join(GEMINI_CONFIG_DIR, dir);
+        if (fs.existsSync(dirPath)) {
+            console.log(`Deleting credential directory: ${dirPath}`);
+            fs.rmSync(dirPath, { recursive: true, force: true });
+        }
+    }
+
+    console.log("Gemini credentials cleared.");
 };
 
 export const checkGeminiAuthStatus = () => {
