@@ -76,11 +76,12 @@ RUN mkdir -p /app/playground /app/data \
     fi \
     && chown -R node:node /app/playground /app/data
 
-COPY --chown=node:node settings.json /tmp/settings.json
+COPY --chown=node:node settings.json trustedFolders.json /tmp/
 RUN if [ "$AGENT_PROVIDER" = "gemini" ]; then \
-    cp /tmp/settings.json /home/node/.gemini/settings.json; \
+    cp /tmp/settings.json /home/node/.gemini/settings.json \
+    && cp /tmp/trustedFolders.json /home/node/.gemini/trustedFolders.json; \
     fi \
-    && rm -f /tmp/settings.json
+    && rm -f /tmp/settings.json /tmp/trustedFolders.json
 
 USER node
 
