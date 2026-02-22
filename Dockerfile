@@ -25,6 +25,8 @@ RUN mkdir -p /home/node/.codex && chown -R node:node /home/node/.codex
 
 RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
 
+RUN mkdir -p /app/playground && chown -R node:node /app/playground
+
 USER node
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]

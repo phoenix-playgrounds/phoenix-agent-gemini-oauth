@@ -10,4 +10,4 @@ services:
     environment:
       - NODE_ENV=development
       - CHAT_PORT=${CHAT_PORT:-3100}
-      - AGENT_PROVIDER=${AGENT_PROVIDER:-gemini}
+      - AGENT_PROVIDER=${AGENT_PROVIDER:-mock}

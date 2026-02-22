@@ -42,15 +42,15 @@ describe("Orchestrator", () => {
     });
 
     describe("handleClientConnected", () => {
-        it("sends auth_status authenticated when strategy returns true", async () => {
-            mockCheckAuthStatus.mockResolvedValue(true);
-            await orchestrator.handleClientConnected();
+        it("sends cached auth_status immediately", () => {
+            orchestrator.isAuthenticated = true;
+            orchestrator.handleClientConnected();
             expect(outboundMessages).toEqual([{ type: "auth_status", status: "authenticated" }]);
         });
 
-        it("sends auth_status unauthenticated when strategy returns false", async () => {
-            mockCheckAuthStatus.mockResolvedValue(false);
-            await orchestrator.handleClientConnected();
+        it("sends unauthenticated when not yet authenticated", () => {
+            orchestrator.isAuthenticated = false;
+            orchestrator.handleClientConnected();
             expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated" }]);
         });
     });

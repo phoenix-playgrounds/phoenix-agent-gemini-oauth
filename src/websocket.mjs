@@ -13,10 +13,15 @@ export class Orchestrator extends EventEmitter {
         this.strategy = resolveStrategy();
         this.isAuthenticated = false;
         this.isProcessing = false;
+        this._ready = this._initAuthStatus();
+    }
+
+    async _initAuthStatus() {
+        this.isAuthenticated = await this.strategy.checkAuthStatus();
     }
 
     handleClientConnected() {
-        this._checkAndSendAuthStatus();
+        this._send("auth_status", { status: this.isAuthenticated ? "authenticated" : "unauthenticated" });
     }
 
     async handleClientMessage(msg) {

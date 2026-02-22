@@ -10,7 +10,7 @@
     };
 
     const RESPONSE_TIMEOUT_MS = 600_000;
-    const RECONNECT_INTERVAL_MS = 3000;
+    const RECONNECT_INTERVAL_MS = 500;
 
     let state = STATES.INITIALIZING;
     let ws = null;
@@ -48,7 +48,6 @@
                 clearTimeout(reconnectTimer);
                 reconnectTimer = null;
             }
-            send({ action: "check_auth_status" });
         };
 
         ws.onmessage = (event) => {
