@@ -1,6 +1,16 @@
 # Phoenix Agent
 
-A multi-provider AI agent that operates headlessly in Docker, authenticating via OAuth and communicating with a Rails backend over ActionCable.
+A multi-provider AI agent that runs as a standalone container with a built-in chat UI. Authenticates via OAuth and communicates with AI providers through CLI wrappers.
+
+## Chat UI
+
+The agent ships with a built-in web-based chat interface served on port `3100` (configurable via `CHAT_PORT`). Open `http://localhost:3100` in a browser to interact with the agent directly — no Rails backend required.
+
+The chat supports:
+- OAuth authentication flow (provider-specific)
+- Real-time messaging via WebSocket
+- Single-session enforcement (one active user at a time)
+- Auto-reconnect on connection drops
 
 ## Supported Providers
 
@@ -22,28 +32,28 @@ Claude Code CLI requires special handling in Docker compared to Gemini and Codex
 
 **Prompt execution:** Uses `claude -p "prompt" --dangerously-skip-permissions` with `--add-dir` for each repository directory under `/app/playground`.
 
-**User experience difference:** Instead of copying a short auth code (like Gemini/Codex), the user copies a full localhost URL from their browser address bar. The Rails API contract (`submit_auth_code`) remains unchanged — the agent handles the URL internally.
+**User experience difference:** Instead of copying a short auth code (like Gemini/Codex), the user copies a full localhost URL from their browser address bar. The API contract (`submit_auth_code`) remains unchanged — the agent handles the URL internally.
 
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `WS_URL` | Yes | `ws://localhost:8080/cable` | ActionCable WebSocket endpoint |
-| `PLAYGROUND_ID` | Yes | — | ID of the playground this agent serves |
-| `AGENT_SECRET` | Yes | — | Secret for authenticating with the Rails AgentChannel |
+| `CHAT_PORT` | No | `3100` | Port for the built-in chat web server |
 | `AGENT_PROVIDER` | No | `gemini` | Which AI CLI provider to use (set to `mock` for testing) |
 
 ## Architecture
 
-The agent uses a **strategy pattern** to support multiple AI providers:
-
 ```
 src/
 ├── index.mjs              # Entrypoint, graceful shutdown
-├── agent.mjs              # Starts the ActionCable consumer
-├── agent_connection.mjs   # ActionCable transport layer
+├── agent.mjs              # Creates orchestrator + starts chat server
+├── server.mjs             # Express HTTP + WebSocket server
 ├── websocket.mjs          # Orchestrator (wires events to strategy)
+├── public/                # Chat UI (served as static files)
+│   ├── index.html         # Chat page
+│   ├── styles.css         # Dark theme CSS
+│   └── chat.js            # WebSocket client + state machine
 └── strategies/
     ├── base.mjs           # Abstract interface
     ├── index.mjs          # Strategy resolver (reads env vars)
@@ -57,7 +67,15 @@ bin/
 └── start.sh               # Entrypoint (conditionally starts dbus/gnome-keyring)
 ```
 
-The `resolveStrategy()` function in `strategies/index.mjs` reads `AGENT_PROVIDER` (default: `gemini`) and returns the matching strategy instance.
+## Quick Start
+
+```bash
+# Run with Docker Compose (uses mock provider by default in dev)
+docker compose up --build
+
+# Open the chat UI
+open http://localhost:3100
+```
 
 ## Testing
 
@@ -65,47 +83,29 @@ The `resolveStrategy()` function in `strategies/index.mjs` reads `AGENT_PROVIDER
 - Run integration tests: `node tests/integration.mjs`
 - Run linter: `npm run lint`
 
-For integration tests, a mock WebSocket server and a mock `gemini` executable in `tests/bin/` prevent hitting actual provider servers.
+Integration tests use the `mock` provider and verify the full WebSocket flow (auth status check → chat message → response).
 
-## ActionCable Event Types & Workflows
+## WebSocket Protocol
 
-### Event Types Consumed (from Rails server)
+The chat UI communicates with the agent over a plain JSON WebSocket at `/ws`.
 
-*   **`{action: "initiate_auth"}`**: Triggers the provider authentication process.
-*   **`{action: "submit_auth_code", code: "..."}`**: Submits the authorization code to the auth process.
-*   **`{action: "cancel_auth"}`**: Cancels the current authentication process.
-*   **`{action: "reauthenticate"}`**: Clears credentials and restarts authentication.
-*   **`{action: "check_auth_status"}`**: Requests the current authentication status.
-*   **`{action: "send_chat_message", text: "..."}`**: Sends a prompt to the AI provider. Prepends `SYSTEM_PROMPT.md` contents.
+### Client → Agent
 
-### Event Types Produced (to Rails server)
+| Action | Payload | Description |
+|---|---|---|
+| `check_auth_status` | — | Request current auth status |
+| `initiate_auth` | — | Start OAuth flow |
+| `submit_auth_code` | `code` (string) | Submit the authorization code |
+| `cancel_auth` | — | Cancel current auth process |
+| `reauthenticate` | — | Clear credentials and restart auth |
+| `send_chat_message` | `text` (string) | Send a prompt to the AI provider |
 
-*   **`{action: "auth_url_generated", url: "..."}`**: The OAuth consent URL generated by the provider.
-*   **`{action: "auth_success"}`**: Authentication succeeded. Agent is ready for prompts.
-*   **`{action: "auth_status", status: "authenticated" | "unauthenticated"}`**: Current auth status.
-*   **`{action: "chat_message_in", text: "..."}`**: Successful prompt output.
-*   **`{action: "error", message: "..."}`**: Error, `NEED_AUTH`, or `BLOCKED`.
-*   **`{action: "ping"}`**: Keep-alive heartbeat.
+### Agent → Client
 
-### Workflows
-
-#### 1. Authentication Workflow
-1. Client sends `{action: "initiate_auth"}`.
-2. Agent checks auth status via the provider strategy.
-3. If not authenticated, agent starts the provider's auth flow.
-4. Agent responds `{action: "auth_url_generated", url: "..."}`.
-5. User authorizes via browser and copies the code.
-6. Client sends `{action: "submit_auth_code", code: "<code>"}`.
-7. Agent writes code to the provider's auth process.
-8. Agent replies `{action: "auth_success"}`.
-
-#### 2. Prompt Execution Workflow
-1. Ensure the agent is authenticated.
-2. Client sends `{action: "send_chat_message", text: "<user message>"}`.
-3. Agent prepends `SYSTEM_PROMPT.md` to the user message.
-4. Agent executes the prompt via the provider strategy.
-5. Upon success: `{action: "chat_message_in", text: "..."}`.
-6. Upon error: `{action: "error", message: "..."}`.
-
-#### 3. Status Checking
-*   Client sends `{action: "check_auth_status"}` → Agent responds with `{action: "auth_status", status: "authenticated" | "unauthenticated"}`.
+| Event Type | Payload | Description |
+|---|---|---|
+| `auth_status` | `status`: "authenticated" \| "unauthenticated" | Current auth status |
+| `auth_url_generated` | `url` (string) | OAuth URL to visit |
+| `auth_success` | — | Authentication succeeded |
+| `chat_message_in` | `text` (string) | AI response to a prompt |
+| `error` | `message` (string) | Error message |

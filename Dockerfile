@@ -16,6 +16,8 @@ COPY --chown=node:node src/ ./src/
 COPY --chown=node:node bin/ ./bin/
 COPY --chown=node:node SYSTEM_PROMPT.md ./
 
+EXPOSE 3100
+
 RUN mkdir -p /home/node/.gemini && chown -R node:node /home/node/.gemini
 COPY --chown=node:node settings.json /home/node/.gemini/settings.json
 

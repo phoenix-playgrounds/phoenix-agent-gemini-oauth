@@ -9,7 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@rails/actioncable": "^8.1.200",
+    "express": "^5.2.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {

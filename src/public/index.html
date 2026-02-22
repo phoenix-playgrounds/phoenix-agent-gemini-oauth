@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <meta name="description" content="AI Assistant Chat Interface">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <div class="avatar avatar-bot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                        <path d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="chat-header-title">AI Assistant</h3>
+                    <p id="headerStatus" class="chat-header-status status-warning">Connecting...</p>
+                </div>
+            </div>
+            <div class="chat-header-actions">
+                <button id="authBtn" class="btn btn-primary btn-sm hidden">Start Auth</button>
+            </div>
+        </div>
+
+        <div id="errorBanner" class="error-banner hidden">
+            <div class="error-banner-content">
+                <svg class="error-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+                <span id="errorMessage"></span>
+            </div>
+            <button id="dismissError" class="btn btn-ghost btn-xs">Dismiss</button>
+        </div>
+
+        <dialog id="authModal" class="modal">
+            <div class="modal-box">
+                <button id="cancelAuthModal" class="modal-close">&times;</button>
+                <h3 class="modal-title">
+                    <svg class="modal-title-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    Connect to Provider
+                </h3>
+                <div class="modal-body">
+                    <div id="authUrlDisplay" class="auth-url-section hidden">
+                        <p class="auth-url-description">Please follow the link below to authorize the AI assistant.</p>
+                        <a id="authUrlLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-full">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="btn-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            Open Authentication URL
+                        </a>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="auth-code-section">
+                        <label class="input-label">Paste authorization code</label>
+                        <input id="authCodeInput" type="text" class="input" placeholder="Paste code here...">
+                        <button id="authCodeSubmitBtn" class="btn btn-primary btn-full">Submit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-backdrop" id="modalBackdrop"></div>
+        </dialog>
+
+        <div id="messages" class="chat-messages">
+            <div class="message-row">
+                <div class="message-avatar">
+                    <div class="avatar avatar-bot">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="message-content">
+                    <div class="message-bubble message-bot">Welcome! I'm your AI assistant. How can I help you today?</div>
+                    <div class="message-time-wrapper"><time class="message-time">Just now</time></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+                <textarea id="chatInput" class="chat-input disabled" placeholder="Connecting to agent..." rows="2" disabled></textarea>
+                <button id="submitBtn" class="chat-submit-btn" disabled>
+                    <svg class="send-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/chat.js"></script>
+</body>
+</html>

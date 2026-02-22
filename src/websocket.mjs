@@ -1,103 +1,121 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { EventEmitter } from "events";
 import { resolveStrategy } from "./strategies/index.mjs";
-import { AgentConnection } from "./agent_connection.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.resolve(__dirname, "../SYSTEM_PROMPT.md");
 
-const PING_INTERVAL_MS = 15_000;
+export class Orchestrator extends EventEmitter {
+    constructor() {
+        super();
+        this.strategy = resolveStrategy();
+        this.isAuthenticated = false;
+        this.isProcessing = false;
+    }
 
-export const createActionCableConsumer = () => {
-    const connection = new AgentConnection();
-    const strategy = resolveStrategy();
+    handleClientConnected() {
+        this._checkAndSendAuthStatus();
+    }
 
-    let isAuthenticated = false;
-    let isProcessing = false;
-    let pingInterval = null;
+    async handleClientMessage(msg) {
+        const action = msg.action;
 
-    connection.on('connected', async () => {
-        isAuthenticated = await strategy.checkAuthStatus();
-        connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
-
-        if (pingInterval) clearInterval(pingInterval);
-        pingInterval = setInterval(() => {
-            connection.sendPing();
-        }, PING_INTERVAL_MS);
-    });
-
-    connection.on('check_auth_status', async () => {
-        isAuthenticated = await strategy.checkAuthStatus();
-        connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
-    });
-
-    connection.on('initiate_auth', async () => {
-        console.log("Received initiate_auth. Checking auth status...");
-        const currentlyAuthenticated = await strategy.checkAuthStatus();
-        if (currentlyAuthenticated) {
-            console.log("Already authenticated! Sending auth_success...");
-            isAuthenticated = true;
-            connection.sendAuthSuccess();
+        if (action === "check_auth_status") {
+            await this._checkAndSendAuthStatus();
+        } else if (action === "initiate_auth") {
+            await this._handleInitiateAuth();
+        } else if (action === "submit_auth_code") {
+            this._handleSubmitAuthCode(msg.code);
+        } else if (action === "cancel_auth") {
+            this._handleCancelAuth();
+        } else if (action === "reauthenticate") {
+            await this._handleReauthenticate();
+        } else if (action === "send_chat_message") {
+            await this._handleChatMessage(msg.text);
         } else {
-            console.log("Not authenticated. Starting auth...");
-            strategy.executeAuth(connection);
+            console.warn(`[Orchestrator] Unknown action: ${action}`);
         }
-    });
+    }
 
-    connection.on('submit_auth_code', (code) => {
-        console.log("Received submit_auth_code. Submitting to auth process...");
-        strategy.submitAuthCode(code);
-    });
+    _send(type, data = {}) {
+        this.emit("outbound", type, data);
+    }
 
-    connection.on('cancel_auth', () => {
-        console.log("Received cancel_auth. Terminating auth sub-process...");
-        strategy.cancelAuth();
-        isAuthenticated = false;
-        connection.sendAuthStatus('unauthenticated');
-    });
+    async _checkAndSendAuthStatus() {
+        this.isAuthenticated = await this.strategy.checkAuthStatus();
+        this._send("auth_status", { status: this.isAuthenticated ? "authenticated" : "unauthenticated" });
+    }
 
-    connection.on('reauthenticate', async () => {
-        console.log("Received reauthenticate. Clearing credentials and restarting auth...");
-        strategy.cancelAuth();
-        strategy.clearCredentials();
-        isAuthenticated = false;
-        connection.sendAuthStatus('unauthenticated');
-        strategy.executeAuth(connection);
-    });
+    async _handleInitiateAuth() {
+        console.log("[Orchestrator] initiate_auth");
+        const currentlyAuthenticated = await this.strategy.checkAuthStatus();
+        if (currentlyAuthenticated) {
+            this.isAuthenticated = true;
+            this._send("auth_success");
+        } else {
+            const connection = this._createStrategyBridge();
+            this.strategy.executeAuth(connection);
+        }
+    }
 
-    connection.on('send_chat_message', async (text) => {
-        if (!isAuthenticated) {
-            console.log("Chat message rejected: NEED_AUTH");
-            connection.sendError('NEED_AUTH');
+    _handleSubmitAuthCode(code) {
+        console.log("[Orchestrator] submit_auth_code");
+        this.strategy.submitAuthCode(code);
+    }
+
+    _handleCancelAuth() {
+        console.log("[Orchestrator] cancel_auth");
+        this.strategy.cancelAuth();
+        this.isAuthenticated = false;
+        this._send("auth_status", { status: "unauthenticated" });
+    }
+
+    async _handleReauthenticate() {
+        console.log("[Orchestrator] reauthenticate");
+        this.strategy.cancelAuth();
+        this.strategy.clearCredentials();
+        this.isAuthenticated = false;
+        this._send("auth_status", { status: "unauthenticated" });
+        const connection = this._createStrategyBridge();
+        this.strategy.executeAuth(connection);
+    }
+
+    async _handleChatMessage(text) {
+        if (!this.isAuthenticated) {
+            this._send("error", { message: "NEED_AUTH" });
             return;
         }
-        if (isProcessing) {
-            console.log("Chat message rejected: BLOCKED");
-            connection.sendError('BLOCKED');
+        if (this.isProcessing) {
+            this._send("error", { message: "BLOCKED" });
             return;
         }
-        console.log("Received chat message. Executing prompt...");
-        isProcessing = true;
+
+        console.log("[Orchestrator] send_chat_message");
+        this.isProcessing = true;
 
         try {
-            const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
+            const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf8");
             const fullPrompt = `${systemPrompt}\n\n${text}`;
-
-            const result = await strategy.executePrompt(fullPrompt);
-            connection.sendChatMessageIn(result);
+            const result = await this.strategy.executePrompt(fullPrompt);
+            this._send("chat_message_in", { text: result });
         } catch (err) {
-            connection.sendError(err.message);
+            this._send("error", { message: err.message });
         } finally {
-            isProcessing = false;
+            this.isProcessing = false;
         }
-    });
+    }
 
-    connection.on('close', () => {
-        if (pingInterval) clearInterval(pingInterval);
-    });
-
-    connection.connect();
-
-    return connection.ws;
-};
+    _createStrategyBridge() {
+        return {
+            sendAuthUrlGenerated: (url) => this._send("auth_url_generated", { url }),
+            sendAuthSuccess: () => {
+                this.isAuthenticated = true;
+                this._send("auth_success");
+            },
+            sendAuthStatus: (status) => this._send("auth_status", { status }),
+            sendError: (message) => this._send("error", { message })
+        };
+    }
+}

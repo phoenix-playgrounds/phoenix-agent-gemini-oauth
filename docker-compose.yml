@@ -5,8 +5,9 @@ services:
       dockerfile: Dockerfile
     init: true
     restart: always
+    ports:
+      - "${CHAT_PORT:-3100}:${CHAT_PORT:-3100}"
     environment:
       - NODE_ENV=development
-      - WS_URL=${WS_URL:-ws://host.docker.internal:55556/agent-cable}
-      - AGENT_SECRET=${AGENT_SECRET:-SECRET}
+      - CHAT_PORT=${CHAT_PORT:-3100}
       - AGENT_PROVIDER=${AGENT_PROVIDER:-gemini}

@@ -1,5 +1,8 @@
-import { createActionCableConsumer } from "./websocket.mjs";
+import { Orchestrator } from "./websocket.mjs";
+import { createChatServer } from "./server.mjs";
 
 export const startAgent = () => {
-    return createActionCableConsumer();
+    const orchestrator = new Orchestrator();
+    createChatServer(orchestrator);
+    return orchestrator;
 };
