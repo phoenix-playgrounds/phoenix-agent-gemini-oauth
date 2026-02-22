@@ -67,5 +67,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-gemini-oauth:latest
-            ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-gemini-oauth:${{ github.sha }}
+            ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-oauth:latest
+            ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-oauth:${{ github.sha }}
