@@ -8,7 +8,7 @@ let agentProcess;
 
 wss.on("listening", () => {
     agentProcess = spawn("node", ["src/index.mjs"], {
-        env: { ...process.env, WS_URL: "ws://localhost:8081", PATH: `${process.cwd()}/tests/bin:${process.env.PATH}`, AGENT_SECRET: "secret", PLAYGROUND_ID: 1 }
+        env: { ...process.env, WS_URL: "ws://localhost:8081", PATH: `${process.cwd()}/tests/bin:${process.env.PATH}`, AGENT_SECRET: "secret", PLAYGROUND_ID: 1, AGENT_PROVIDER: "gemini" }
     });
 
     agentProcess.stdout.on("data", (data) => console.log(`[AGENT] ${data.toString().trim()}`));

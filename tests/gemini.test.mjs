@@ -6,20 +6,23 @@ jest.unstable_mockModule("child_process", () => ({
     spawn: mockSpawn
 }));
 
-const { executeGeminiAuth, executeGeminiPrompt, checkGeminiAuthStatus } = await import("../src/gemini.mjs");
-
-import { OutboundAction } from "../src/agent_connection.mjs";
+const { GeminiStrategy } = await import("../src/strategies/gemini.mjs");
 
 const mockChannel = {
     sendAction: jest.fn(),
-    sendAuthSuccess: jest.fn()
+    sendAuthSuccess: jest.fn(),
+    sendAuthUrlGenerated: jest.fn(),
+    sendAuthStatus: jest.fn()
 };
 
-describe("Gemini execution", () => {
+describe("GeminiStrategy", () => {
+    let strategy;
+
     beforeEach(() => {
         jest.clearAllMocks();
         jest.spyOn(console, 'log').mockImplementation(() => { });
         jest.spyOn(console, 'error').mockImplementation(() => { });
+        strategy = new GeminiStrategy();
     });
 
     afterEach(() => {
@@ -40,7 +43,7 @@ describe("Gemini execution", () => {
 
         mockSpawn.mockReturnValue(mockProcess);
 
-        executeGeminiAuth(mockChannel);
+        strategy.executeAuth(mockChannel);
 
         expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-p", ""], expect.objectContaining({
             shell: false,
@@ -50,9 +53,8 @@ describe("Gemini execution", () => {
         const stdoutCallback = onStdoutData.mock.calls[0][1];
         stdoutCallback(Buffer.from("Please go to https://accounts.google.com/o/oauth2/xxx to authorize"));
 
-        expect(mockChannel.sendAction).toHaveBeenCalledWith(
-            OutboundAction.URL_GENERATED,
-            { url: "https://accounts.google.com/o/oauth2/xxx" }
+        expect(mockChannel.sendAuthUrlGenerated).toHaveBeenCalledWith(
+            "https://accounts.google.com/o/oauth2/xxx"
         );
     });
 
@@ -70,7 +72,7 @@ describe("Gemini execution", () => {
 
         mockSpawn.mockReturnValue(mockProcess);
 
-        const promise = executeGeminiPrompt("test prompt");
+        const promise = strategy.executePrompt("test prompt");
 
         expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "-p", "test prompt"], expect.objectContaining({
             shell: false
@@ -85,7 +87,7 @@ describe("Gemini execution", () => {
         expect(result).toBe("Gemini result here");
     });
 
-    describe("checkGeminiAuthStatus", () => {
+    describe("checkAuthStatus", () => {
         let onStdoutData, onStderrData, callbacks, mockProcess;
 
         beforeEach(() => {
@@ -108,7 +110,7 @@ describe("Gemini execution", () => {
         });
 
         it("resolves true if auth url is not printed", async () => {
-            const resultPromise = checkGeminiAuthStatus();
+            const resultPromise = strategy.checkAuthStatus();
 
             if (callbacks.stdoutData) {
                 callbacks.stdoutData(Buffer.from("Just running gemini normally\n"));
@@ -120,7 +122,7 @@ describe("Gemini execution", () => {
         });
 
         it("resolves false if auth url is printed", async () => {
-            const resultPromise = checkGeminiAuthStatus();
+            const resultPromise = strategy.checkAuthStatus();
 
             if (callbacks.stdoutData) {
                 callbacks.stdoutData(Buffer.from("Please go to https://accounts.google.com/o/oauth2/auth to login\n"));
@@ -131,7 +133,7 @@ describe("Gemini execution", () => {
         });
 
         it("resolves false if process fails to spawn", async () => {
-            const resultPromise = checkGeminiAuthStatus();
+            const resultPromise = strategy.checkAuthStatus();
 
             if (callbacks.error) callbacks.error(new Error("enoent"));
 

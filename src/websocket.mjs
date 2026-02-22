@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { executeGeminiAuth, executeGeminiPrompt, submitGeminiAuthCode, checkGeminiAuthStatus, cancelGeminiAuth, clearGeminiCredentials } from "./gemini.mjs";
+import { resolveStrategy } from "./strategies/index.mjs";
 import { AgentConnection } from "./agent_connection.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,13 +11,14 @@ const PING_INTERVAL_MS = 15_000;
 
 export const createActionCableConsumer = () => {
     const connection = new AgentConnection();
+    const strategy = resolveStrategy();
 
     let isAuthenticated = false;
     let isProcessing = false;
     let pingInterval = null;
 
     connection.on('connected', async () => {
-        isAuthenticated = await checkGeminiAuthStatus();
+        isAuthenticated = await strategy.checkAuthStatus();
         connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
 
         if (pingInterval) clearInterval(pingInterval);
@@ -27,42 +28,42 @@ export const createActionCableConsumer = () => {
     });
 
     connection.on('check_auth_status', async () => {
-        isAuthenticated = await checkGeminiAuthStatus();
+        isAuthenticated = await strategy.checkAuthStatus();
         connection.sendAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
     });
 
     connection.on('initiate_auth', async () => {
         console.log("Received initiate_auth. Checking auth status...");
-        const currentlyAuthenticated = await checkGeminiAuthStatus();
+        const currentlyAuthenticated = await strategy.checkAuthStatus();
         if (currentlyAuthenticated) {
             console.log("Already authenticated! Sending auth_success...");
             isAuthenticated = true;
             connection.sendAuthSuccess();
         } else {
-            console.log("Not authenticated. Starting Gemini Auth...");
-            executeGeminiAuth(connection);
+            console.log("Not authenticated. Starting auth...");
+            strategy.executeAuth(connection);
         }
     });
 
     connection.on('submit_auth_code', (code) => {
-        console.log("Received submit_auth_code. Submitting to Gemini process...");
-        submitGeminiAuthCode(code);
+        console.log("Received submit_auth_code. Submitting to auth process...");
+        strategy.submitAuthCode(code);
     });
 
     connection.on('cancel_auth', () => {
         console.log("Received cancel_auth. Terminating auth sub-process...");
-        cancelGeminiAuth();
+        strategy.cancelAuth();
         isAuthenticated = false;
         connection.sendAuthStatus('unauthenticated');
     });
 
     connection.on('reauthenticate', async () => {
         console.log("Received reauthenticate. Clearing credentials and restarting auth...");
-        cancelGeminiAuth();
-        clearGeminiCredentials();
+        strategy.cancelAuth();
+        strategy.clearCredentials();
         isAuthenticated = false;
         connection.sendAuthStatus('unauthenticated');
-        executeGeminiAuth(connection);
+        strategy.executeAuth(connection);
     });
 
     connection.on('send_chat_message', async (text) => {
@@ -76,14 +77,14 @@ export const createActionCableConsumer = () => {
             connection.sendError('BLOCKED');
             return;
         }
-        console.log("Received chat message. Executing Gemini...");
+        console.log("Received chat message. Executing prompt...");
         isProcessing = true;
 
         try {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
             const fullPrompt = `${systemPrompt}\n\n${text}`;
 
-            const result = await executeGeminiPrompt(fullPrompt);
+            const result = await strategy.executePrompt(fullPrompt);
             connection.sendChatMessageIn(result);
         } catch (err) {
             connection.sendError(err.message);

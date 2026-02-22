@@ -9,4 +9,4 @@ services:
       - NODE_ENV=development
       - WS_URL=${WS_URL:-ws://host.docker.internal:55556/agent-cable}
       - AGENT_SECRET=${AGENT_SECRET:-SECRET}
-      - MOCKED_GEMINI=${MOCKED_GEMINI:-}
+      - AGENT_PROVIDER=${AGENT_PROVIDER:-gemini}
