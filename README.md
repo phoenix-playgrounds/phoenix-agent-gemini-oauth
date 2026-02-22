@@ -8,9 +8,22 @@ A multi-provider AI agent that operates headlessly in Docker, authenticating via
 |---|---|---|
 | Gemini CLI | `gemini` (default) | ✅ Fully implemented |
 | OpenAI Codex | `openai_codex` | ✅ Fully implemented |
-| Claude Code | `claude_code` | 🚧 Stub |
+| Claude Code | `claude_code` | ✅ Implemented (requires dbus + gnome-keyring in Docker) |
 | OpenCode | `opencode` | 🚧 Stub |
 | Mock | `mock` | ✅ For testing (instant success, no real CLI calls) |
+
+## Claude Code — Implementation Notes
+
+Claude Code CLI requires special handling in Docker compared to Gemini and Codex:
+
+**Authentication:** The `claude` CLI uses browser-redirect OAuth (no device code flow). In Docker, the agent captures the auth URL from stdout, sends it to the user, and when the user's browser redirect fails (pointing to container's localhost), the user copies the **full redirect URL** from their browser's address bar. The agent then forwards this URL to the CLI's local callback server inside the container via HTTP GET.
+
+**Credential storage:** Claude Code uses `libsecret` (gnome-keyring) on Linux. The Docker image includes `dbus` and `gnome-keyring`, and `bin/start.sh` initializes them before the Node.js agent starts.
+
+**Prompt execution:** Uses `claude -p "prompt" --dangerously-skip-permissions` with `--add-dir` for each repository directory under `/app/playground`.
+
+**User experience difference:** Instead of copying a short auth code (like Gemini/Codex), the user copies a full localhost URL from their browser address bar. The Rails API contract (`submit_auth_code`) remains unchanged — the agent handles the URL internally.
+
 
 ## Environment Variables
 
@@ -35,10 +48,13 @@ src/
     ├── base.mjs           # Abstract interface
     ├── index.mjs          # Strategy resolver (reads env vars)
     ├── gemini.mjs         # Gemini CLI implementation
+    ├── openai_codex.mjs   # OpenAI Codex CLI implementation
+    ├── claude_code.mjs    # Claude Code CLI implementation
     ├── mock.mjs           # Mock provider (for testing)
-    ├── claude_code.mjs    # Stub
-    ├── openai_codex.mjs   # Stub
     └── opencode.mjs       # Stub
+
+bin/
+└── start.sh               # Entrypoint (conditionally starts dbus/gnome-keyring)
 ```
 
 The `resolveStrategy()` function in `strategies/index.mjs` reads `AGENT_PROVIDER` (default: `gemini`) and returns the matching strategy instance.
