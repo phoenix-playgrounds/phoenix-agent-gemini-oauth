@@ -7,8 +7,8 @@ A multi-provider AI agent that operates headlessly in Docker, authenticating via
 | Provider | `AGENT_PROVIDER` value | Status |
 |---|---|---|
 | Gemini CLI | `gemini` (default) | ✅ Fully implemented |
+| OpenAI Codex | `openai_codex` | ✅ Fully implemented |
 | Claude Code | `claude_code` | 🚧 Stub |
-| OpenAI Codex | `openai_codex` | 🚧 Stub |
 | OpenCode | `opencode` | 🚧 Stub |
 | Mock | `mock` | ✅ For testing (instant success, no real CLI calls) |
 
