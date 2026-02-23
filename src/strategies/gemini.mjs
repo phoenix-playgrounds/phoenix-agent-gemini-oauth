@@ -168,7 +168,7 @@ export class GeminiStrategy extends BaseStrategy {
     }
 
     getModelArgs(model) {
-        if (!model) return [];
+        if (!model || model === 'undefined') return [];
         return ['-m', model];
     }
 

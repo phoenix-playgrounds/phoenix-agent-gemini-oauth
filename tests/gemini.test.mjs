@@ -74,7 +74,7 @@ describe("GeminiStrategy", () => {
 
         const promise = strategy.executePrompt("test prompt");
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "-p", "test prompt"], expect.objectContaining({
+        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "-d", "-p", "test prompt"], expect.objectContaining({
             shell: false
         }));
 
@@ -103,7 +103,7 @@ describe("GeminiStrategy", () => {
 
         const promise = strategy.executePrompt("test prompt", "flash-lite");
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-m", "flash-lite", "--yolo", "-p", "test prompt"], expect.objectContaining({
+        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-m", "flash-lite", "--yolo", "-d", "-p", "test prompt"], expect.objectContaining({
             shell: false
         }));
 
