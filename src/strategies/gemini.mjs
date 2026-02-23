@@ -23,9 +23,15 @@ export class GeminiStrategy extends BaseStrategy {
         });
 
         let authUrlExtracted = false;
+        let isCode42Expected = false;
 
         const handleCliOutput = (data) => {
             const output = data.toString();
+
+            if (output.includes('No input provided via stdin') || output.includes('Loaded cached credentials')) {
+                isCode42Expected = true;
+            }
+
             // Skip noisy auth loop logs
             if (!output.includes('Waiting for authentication')) {
                 console.log(`[GEMINI RAW OUTPUT]: ${output.trim()}`);
@@ -46,9 +52,9 @@ export class GeminiStrategy extends BaseStrategy {
         this.activeAuthProcess.stderr.on('data', handleCliOutput);
 
         this.activeAuthProcess.on('close', (code) => {
-            console.log(`Gemini Auth Process exited with code ${code}`);
+            console.log(`[GEMINI DEBUG] Gemini Auth Process exited with code ${code}`);
             if (this.currentConnection) {
-                if (code === 0 || code === 42) {
+                if (code === 0 || (code === 42 && isCode42Expected)) {
                     this.currentConnection.sendAuthSuccess();
                 } else {
                     console.error(`Gemini Auth failed with exit code ${code}`);
@@ -107,6 +113,7 @@ export class GeminiStrategy extends BaseStrategy {
 
     checkAuthStatus() {
         return new Promise((resolve) => {
+            console.log("[GEMINI DEBUG] Starting checkAuthStatus process");
             const geminiProcess = spawn('gemini', ['-p', ''], {
                 env: { ...process.env, NO_BROWSER: 'true' },
                 shell: false
@@ -114,14 +121,21 @@ export class GeminiStrategy extends BaseStrategy {
 
             let outputStr = '';
             let resolved = false;
+            let isCode42Expected = false;
 
             const handleData = (data) => {
                 if (resolved) return;
                 const text = data.toString();
                 outputStr += text;
+                console.log("[GEMINI DEBUG] checkAuthStatus raw data:", text.trim());
+
+                if (text.includes('No input provided via stdin') || text.includes('Loaded cached credentials')) {
+                    isCode42Expected = true;
+                }
 
                 // If it asks for an auth URL, it's not authenticated.
                 if (/https:\/\/accounts\.google\.com[^\s"'>]+/.test(outputStr) || text.includes('Waiting for authentication')) {
+                    console.log("[GEMINI DEBUG] checkAuthStatus detected auth flow, resolving false");
                     resolved = true;
                     geminiProcess.kill();
                     resolve(false);
@@ -131,17 +145,22 @@ export class GeminiStrategy extends BaseStrategy {
             geminiProcess.stdout.on('data', handleData);
             geminiProcess.stderr.on('data', handleData);
 
-            geminiProcess.on('close', (_code) => {
+            geminiProcess.on('close', (code) => {
+                console.log(`[GEMINI DEBUG] checkAuthStatus exited with code ${code}`);
                 if (!resolved) {
                     resolved = true;
-                    resolve(true);
+                    if (code === 0 || (code === 42 && isCode42Expected)) {
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
                 }
             });
 
             geminiProcess.on('error', (err) => {
+                console.error("[GEMINI DEBUG] Error checking auth status: ", err);
                 if (!resolved) {
                     resolved = true;
-                    console.error("Error checking auth status: ", err);
                     resolve(false);
                 }
             });
@@ -160,7 +179,9 @@ export class GeminiStrategy extends BaseStrategy {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
+            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-d', '-p', prompt];
+            console.log("[GEMINI DEBUG] executePrompt args:", JSON.stringify(geminiArgs));
+            console.log(`[GEMINI DEBUG] executePrompt prompt length: ${prompt.length} chars`);
 
             const geminiProcess = spawn('gemini', geminiArgs, {
                 env: { ...process.env, NO_BROWSER: 'true' },
@@ -172,14 +193,22 @@ export class GeminiStrategy extends BaseStrategy {
             let errorResult = '';
 
             geminiProcess.stdout.on('data', (data) => {
-                outputResult += data.toString();
+                const text = data.toString();
+                outputResult += text;
+                console.log("[GEMINI PROMPT STDOUT]:", text.trim());
             });
 
             geminiProcess.stderr.on('data', (data) => {
-                errorResult += data.toString();
+                const text = data.toString();
+                errorResult += text;
+                console.log("[GEMINI PROMPT STDERR]:", text.trim());
             });
 
             geminiProcess.on('close', (code) => {
+                console.log(`[GEMINI DEBUG] executePrompt exited with code ${code}`);
+                console.log(`[GEMINI DEBUG] Full stdout: ${outputResult}`);
+                console.log(`[GEMINI DEBUG] Full stderr: ${errorResult}`);
+
                 if (code !== 0) {
                     console.warn(`Gemini process exited with code ${code}`);
                 }
@@ -190,7 +219,7 @@ export class GeminiStrategy extends BaseStrategy {
                     return;
                 }
 
-                if (outputResult.trim()) {
+                if (outputResult.trim() || (code === 0 && !errorResult)) {
                     resolve(outputResult);
                 } else if (code !== 0) {
                     reject(new Error(errorResult || `Process exited with code ${code}`));
@@ -200,6 +229,7 @@ export class GeminiStrategy extends BaseStrategy {
             });
 
             geminiProcess.on('error', (err) => {
+                console.error("[GEMINI PROMPT ERROR]:", err);
                 reject(err);
             });
         });
