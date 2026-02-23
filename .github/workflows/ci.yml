@@ -82,3 +82,5 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-oauth:${{ matrix.provider.tag }}-latest
             ghcr.io/${{ steps.repo_owner.outputs.owner }}/phoenix-agent-oauth:${{ matrix.provider.tag }}-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.provider.key }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.provider.key }}

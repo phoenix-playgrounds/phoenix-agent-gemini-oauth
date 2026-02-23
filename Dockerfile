@@ -4,14 +4,14 @@ ARG AGENT_PROVIDER=gemini
 
 RUN apk add --no-cache python3 make g++
 
-RUN if [ "$AGENT_PROVIDER" = "gemini" ]; then \
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$AGENT_PROVIDER" = "gemini" ]; then \
     npm install -g @google/gemini-cli; \
     elif [ "$AGENT_PROVIDER" = "claude_code" ]; then \
     npm install -g @anthropic-ai/claude-code@2.1.50; \
     elif [ "$AGENT_PROVIDER" = "openai_codex" ]; then \
     npm install -g @openai/codex@0.104.0; \
-    fi \
-    && npm cache clean --force
+    fi
 
 RUN find /usr/local/lib/node_modules -type d \( \
     -name "test" -o -name "tests" -o -name "__tests__" \
@@ -41,8 +41,8 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev \
-    && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev
 
 FROM node:25-alpine
 
@@ -59,10 +59,6 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules/
-
-COPY --chown=node:node src/ ./src/
-COPY --chown=node:node bin/ ./bin/
-COPY --chown=node:node SYSTEM_PROMPT.md ./
 
 EXPOSE 3100
 
@@ -82,6 +78,10 @@ RUN if [ "$AGENT_PROVIDER" = "gemini" ]; then \
     && cp /tmp/trustedFolders.json /home/node/.gemini/trustedFolders.json; \
     fi \
     && rm -f /tmp/settings.json /tmp/trustedFolders.json
+
+COPY --chown=node:node src/ ./src/
+COPY --chown=node:node bin/ ./bin/
+COPY --chown=node:node SYSTEM_PROMPT.md ./
 
 USER node
 
