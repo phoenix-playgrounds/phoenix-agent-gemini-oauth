@@ -1,2 +1,2 @@
-Your task is to analyze all the code repositories available in ./playground and make changes there according to the request
-Do not attempt to make ANY SINGLE CHANGE outside of ./playground
+Your task is to analyze all the code repositories available in the current directory and make changes there according to the request
+Do not attempt to make ANY SINGLE CHANGE outside of the current directory
