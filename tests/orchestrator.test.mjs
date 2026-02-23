@@ -71,13 +71,13 @@ describe("Orchestrator", () => {
         it("sends cached auth_status immediately", () => {
             orchestrator.isAuthenticated = true;
             orchestrator.handleClientConnected();
-            expect(outboundMessages).toEqual([{ type: "auth_status", status: "authenticated" }]);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "authenticated", isProcessing: false }]);
         });
 
         it("sends unauthenticated when not yet authenticated", () => {
             orchestrator.isAuthenticated = false;
             orchestrator.handleClientConnected();
-            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated" }]);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated", isProcessing: false }]);
         });
     });
 
@@ -85,7 +85,7 @@ describe("Orchestrator", () => {
         it("checks and sends auth status", async () => {
             mockCheckAuthStatus.mockResolvedValue(true);
             await orchestrator.handleClientMessage({ action: "check_auth_status" });
-            expect(outboundMessages).toEqual([{ type: "auth_status", status: "authenticated" }]);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "authenticated", isProcessing: false }]);
         });
     });
 
@@ -118,7 +118,7 @@ describe("Orchestrator", () => {
         it("cancels auth and sends unauthenticated status", async () => {
             await orchestrator.handleClientMessage({ action: "cancel_auth" });
             expect(mockCancelAuth).toHaveBeenCalled();
-            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated" }]);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated", isProcessing: false }]);
         });
     });
 
@@ -127,7 +127,7 @@ describe("Orchestrator", () => {
             await orchestrator.handleClientMessage({ action: "reauthenticate" });
             expect(mockCancelAuth).toHaveBeenCalled();
             expect(mockClearCredentials).toHaveBeenCalled();
-            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated" }]);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated", isProcessing: false }]);
             expect(mockExecuteAuth).toHaveBeenCalled();
         });
     });

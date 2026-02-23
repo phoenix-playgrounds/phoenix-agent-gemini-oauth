@@ -24,8 +24,8 @@ export class Orchestrator extends EventEmitter {
         this.isAuthenticated = await this.strategy.checkAuthStatus();
     }
 
-    handleClientConnected() {
-        this._send("auth_status", { status: this.isAuthenticated ? "authenticated" : "unauthenticated" });
+    async _initAuthStatus() {
+        this.isAuthenticated = await this.strategy.checkAuthStatus();
     }
 
     async handleClientMessage(msg) {
@@ -58,7 +58,17 @@ export class Orchestrator extends EventEmitter {
 
     async _checkAndSendAuthStatus() {
         this.isAuthenticated = await this.strategy.checkAuthStatus();
-        this._send("auth_status", { status: this.isAuthenticated ? "authenticated" : "unauthenticated" });
+        this._send("auth_status", {
+            status: this.isAuthenticated ? "authenticated" : "unauthenticated",
+            isProcessing: this.isProcessing
+        });
+    }
+
+    handleClientConnected() {
+        this._send("auth_status", {
+            status: this.isAuthenticated ? "authenticated" : "unauthenticated",
+            isProcessing: this.isProcessing
+        });
     }
 
     async _handleInitiateAuth() {
@@ -82,7 +92,7 @@ export class Orchestrator extends EventEmitter {
         console.log("[Orchestrator] cancel_auth");
         this.strategy.cancelAuth();
         this.isAuthenticated = false;
-        this._send("auth_status", { status: "unauthenticated" });
+        this._send("auth_status", { status: "unauthenticated", isProcessing: this.isProcessing });
     }
 
     async _handleReauthenticate() {
@@ -90,7 +100,7 @@ export class Orchestrator extends EventEmitter {
         this.strategy.cancelAuth();
         this.strategy.clearCredentials();
         this.isAuthenticated = false;
-        this._send("auth_status", { status: "unauthenticated" });
+        this._send("auth_status", { status: "unauthenticated", isProcessing: this.isProcessing });
         const connection = this._createStrategyBridge();
         this.strategy.executeAuth(connection);
     }

@@ -179,9 +179,7 @@ export class GeminiStrategy extends BaseStrategy {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-d', '-p', prompt];
-            console.log("[GEMINI DEBUG] executePrompt args:", JSON.stringify(geminiArgs));
-            console.log(`[GEMINI DEBUG] executePrompt prompt length: ${prompt.length} chars`);
+            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
 
             const geminiProcess = spawn('gemini', geminiArgs, {
                 env: { ...process.env, NO_BROWSER: 'true' },
@@ -219,12 +217,16 @@ export class GeminiStrategy extends BaseStrategy {
                     return;
                 }
 
-                if (outputResult.trim() || (code === 0 && !errorResult)) {
-                    resolve(outputResult);
-                } else if (code !== 0) {
-                    reject(new Error(errorResult || `Process exited with code ${code}`));
+                if (code === 0) {
+                    resolve(outputResult || "Process completed successfully but returned no output.");
                 } else {
-                    resolve(outputResult);
+                    const finalError = [
+                        outputResult.trim(),
+                        errorResult.trim() ? `STDERR: ${errorResult.trim()}` : "",
+                        `Process exited with code ${code}`
+                    ].filter(Boolean).join("\n\n");
+
+                    reject(new Error(finalError));
                 }
             });
 
