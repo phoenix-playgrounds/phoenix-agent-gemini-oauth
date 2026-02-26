@@ -152,6 +152,7 @@ export class Orchestrator extends EventEmitter {
     _createStrategyBridge() {
         return {
             sendAuthUrlGenerated: (url) => this._send("auth_url_generated", { url }),
+            sendDeviceCode: (code) => this._send("auth_device_code", { code }),
             sendAuthSuccess: () => {
                 this.isAuthenticated = true;
                 this._send("auth_success");

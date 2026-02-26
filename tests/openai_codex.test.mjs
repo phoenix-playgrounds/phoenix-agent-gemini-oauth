@@ -29,6 +29,7 @@ const mockChannel = {
     sendAction: jest.fn(),
     sendAuthSuccess: jest.fn(),
     sendAuthUrlGenerated: jest.fn(),
+    sendDeviceCode: jest.fn(),
     sendAuthStatus: jest.fn()
 };
 
@@ -72,6 +73,54 @@ describe("OpenaiCodexStrategy", () => {
         expect(mockChannel.sendAuthUrlGenerated).toHaveBeenCalledWith(
             "https://auth.openai.com/device?user_code=ABCD-1234"
         );
+    });
+
+    it("extracts device code from CLI output and calls sendDeviceCode", () => {
+        const onStdoutData = jest.fn();
+        const onStderrData = jest.fn();
+        const callbacks = {};
+        const mockProcess = {
+            stdout: { on: onStdoutData },
+            stderr: { on: onStderrData },
+            on: (event, cb) => {
+                callbacks[event] = cb;
+            }
+        };
+
+        mockSpawn.mockReturnValue(mockProcess);
+
+        strategy.executeAuth(mockChannel);
+
+        const stdoutCallback = onStdoutData.mock.calls[0][1];
+        stdoutCallback(Buffer.from("Enter this one-time code (expires in 15 minutes)\n2TZF-C90V7\n"));
+
+        expect(mockChannel.sendDeviceCode).toHaveBeenCalledWith("2TZF-C90V7");
+    });
+
+    it("strips ANSI escape codes from URL and device code", () => {
+        const onStdoutData = jest.fn();
+        const onStderrData = jest.fn();
+        const callbacks = {};
+        const mockProcess = {
+            stdout: { on: onStdoutData },
+            stderr: { on: onStderrData },
+            on: (event, cb) => {
+                callbacks[event] = cb;
+            }
+        };
+
+        mockSpawn.mockReturnValue(mockProcess);
+
+        strategy.executeAuth(mockChannel);
+
+        const stdoutCallback = onStdoutData.mock.calls[0][1];
+        stdoutCallback(Buffer.from("https://auth.openai.com/codex/device\x1b[0m"));
+        stdoutCallback(Buffer.from("\x1b[1m2UVN-LUPM3\x1b[0m"));
+
+        expect(mockChannel.sendAuthUrlGenerated).toHaveBeenCalledWith(
+            "https://auth.openai.com/codex/device"
+        );
+        expect(mockChannel.sendDeviceCode).toHaveBeenCalledWith("2UVN-LUPM3");
     });
 
     it("sends auth_success when codex login exits with code 0", () => {

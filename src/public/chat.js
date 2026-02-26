@@ -15,6 +15,7 @@
     let state = STATES.INITIALIZING;
     let ws = null;
     let authUrl = null;
+    let deviceCode = null;
     let responseTimer = null;
     let errorMessage = null;
     let reconnectTimer = null;
@@ -29,6 +30,7 @@
     const authUrlLink = $("#authUrlLink");
     const authCodeInput = $("#authCodeInput");
     const authCodeSubmitBtn = $("#authCodeSubmitBtn");
+    const authCodeLabel = $("#authCodeLabel");
     const cancelAuthModal = $("#cancelAuthModal");
     const modalBackdrop = $("#modalBackdrop");
     const errorBanner = $("#errorBanner");
@@ -140,8 +142,15 @@
             return;
         }
 
+        if (data.type === "auth_device_code") {
+            deviceCode = data.code;
+            renderState();
+            return;
+        }
+
         if (data.type === "auth_success") {
             authUrl = null;
+            deviceCode = null;
             transition(STATES.AUTHENTICATED);
             return;
         }
@@ -275,9 +284,20 @@
             if (!authModal.open) authModal.showModal();
             authUrlDisplay.classList.remove("hidden");
             authUrlLink.href = authUrl;
-            authCodeInput.closest(".auth-code-section").classList.remove("hidden");
-            authCodeSubmitBtn.disabled = false;
-            authCodeSubmitBtn.textContent = "Submit";
+
+            if (deviceCode) {
+                authCodeLabel.textContent = "One-time device code";
+                authCodeInput.value = deviceCode;
+                authCodeInput.readOnly = true;
+                authCodeSubmitBtn.classList.add("hidden");
+            } else {
+                authCodeLabel.textContent = "Paste authorization code";
+                authCodeInput.value = "";
+                authCodeInput.readOnly = false;
+                authCodeSubmitBtn.classList.remove("hidden");
+                authCodeSubmitBtn.disabled = false;
+                authCodeSubmitBtn.textContent = "Submit";
+            }
         } else {
             if (authModal.open) authModal.close();
         }
@@ -373,9 +393,12 @@
 
     function cancelAuth() {
         authUrl = null;
+        deviceCode = null;
         send({ action: "cancel_auth" });
         transition(STATES.UNAUTHENTICATED);
     }
+
+
 
     function submitAuthCode() {
         const code = authCodeInput.value.trim();

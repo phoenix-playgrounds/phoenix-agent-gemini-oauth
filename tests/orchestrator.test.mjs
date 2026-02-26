@@ -194,6 +194,15 @@ describe("Orchestrator", () => {
             expect(orchestrator.isAuthenticated).toBe(true);
             expect(outboundMessages).toEqual([{ type: "auth_success" }]);
         });
+
+        it("sendDeviceCode emits outbound auth_device_code", async () => {
+            mockCheckAuthStatus.mockResolvedValue(false);
+            mockExecuteAuth.mockImplementation((conn) => {
+                conn.sendDeviceCode("2TZF-C90V7");
+            });
+            await orchestrator.handleClientMessage({ action: "initiate_auth" });
+            expect(outboundMessages).toEqual([{ type: "auth_device_code", code: "2TZF-C90V7" }]);
+        });
     });
 
     describe("get_model", () => {

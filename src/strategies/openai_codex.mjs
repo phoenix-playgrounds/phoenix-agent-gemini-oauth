@@ -23,18 +23,29 @@ export class OpenaiCodexStrategy extends BaseStrategy {
         });
 
         let authUrlExtracted = false;
+        let deviceCodeExtracted = false;
 
         const handleCliOutput = (data) => {
             const output = data.toString();
             console.log(`[CODEX RAW OUTPUT]: ${output.trim()}`);
 
-            const urlMatch = output.match(/https:\/\/[^\s"'>]+/);
+            const clean = output.replace(/\x1b\[[0-9;]*m/g, '');
+
+            const urlMatch = clean.match(/https:\/\/[^\s"'>]+/);
 
             if (urlMatch && !authUrlExtracted) {
                 authUrlExtracted = true;
                 const authUrl = urlMatch[0];
                 if (this.currentConnection) {
                     this.currentConnection.sendAuthUrlGenerated(authUrl);
+                }
+            }
+
+            const codeMatch = clean.match(/\b([A-Z0-9]{3,5}-[A-Z0-9]{3,5})\b/);
+            if (codeMatch && !deviceCodeExtracted) {
+                deviceCodeExtracted = true;
+                if (this.currentConnection) {
+                    this.currentConnection.sendDeviceCode(codeMatch[1]);
                 }
             }
         };
