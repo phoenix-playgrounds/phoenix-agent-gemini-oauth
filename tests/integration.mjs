@@ -74,7 +74,15 @@ const run = async () => {
     console.log("Fetching message history from API...");
     const fetchApi = await import("http");
     const getMessages = () => new Promise((resolve, reject) => {
-        fetchApi.get(`http://localhost:${CHAT_PORT}/api/messages`, (res) => {
+        const options = {
+            hostname: 'localhost',
+            port: CHAT_PORT,
+            path: '/api/messages',
+            headers: {
+                Cookie: "agent_auth=testpassword123"
+            }
+        };
+        fetchApi.get(options, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => resolve(JSON.parse(data)));
