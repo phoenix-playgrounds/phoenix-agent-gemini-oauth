@@ -146,4 +146,44 @@ export class OpenaiCodexStrategy extends BaseStrategy {
             });
         });
     }
+
+    executePromptStreaming(prompt, _model, onChunk) {
+        return new Promise((resolve, reject) => {
+            const playgroundDir = path.resolve(process.cwd(), 'playground');
+            if (!fs.existsSync(playgroundDir)) {
+                fs.mkdirSync(playgroundDir, { recursive: true });
+            }
+
+            const codexProcess = spawn('codex', ['exec', '--yolo', prompt], {
+                env: { ...process.env },
+                cwd: playgroundDir,
+                shell: false
+            });
+
+            let errorResult = '';
+
+            codexProcess.stdout.on('data', (data) => {
+                onChunk(data.toString());
+            });
+
+            codexProcess.stderr.on('data', (data) => {
+                errorResult += data.toString();
+            });
+
+            codexProcess.on('close', (code) => {
+                if (code !== 0) {
+                    console.warn(`Codex process exited with code ${code}`);
+                }
+                if (code !== 0 && errorResult.trim()) {
+                    reject(new Error(errorResult || `Process exited with code ${code}`));
+                } else {
+                    resolve();
+                }
+            });
+
+            codexProcess.on('error', (err) => {
+                reject(err);
+            });
+        });
+    }
 }

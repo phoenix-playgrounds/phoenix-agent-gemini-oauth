@@ -18,6 +18,8 @@
     let responseTimer = null;
     let errorMessage = null;
     let reconnectTimer = null;
+    let streamingElement = null;
+    let streamingText = "";
 
     const $ = (sel) => document.querySelector(sel);
     const headerStatus = $("#headerStatus");
@@ -41,6 +43,13 @@
 
     let modelDebounceTimer = null;
     let currentModel = "";
+
+    function renderMarkdown(text) {
+        if (typeof marked !== "undefined") {
+            return marked.parse(text);
+        }
+        return escapeHtml(text);
+    }
 
     function connect() {
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -133,6 +142,8 @@
 
         if (data.type === "error") {
             clearResponseTimer();
+            streamingElement = null;
+            streamingText = "";
             errorMessage = data.message || "An unexpected error occurred";
             transition(STATES.ERROR);
             return;
@@ -144,6 +155,36 @@
                 transition(STATES.AUTHENTICATED);
             }
             renderMessage(data);
+            return;
+        }
+
+        if (data.type === "stream_start") {
+            streamingText = "";
+            streamingElement = createStreamingRow();
+            return;
+        }
+
+        if (data.type === "stream_chunk") {
+            streamingText += (data.text || "");
+            if (streamingElement) {
+                const thinkingEl = streamingElement.querySelector(".thinking-indicator");
+                if (thinkingEl) {
+                    thinkingEl.remove();
+                }
+                streamingElement.innerHTML = renderMarkdown(streamingText);
+            }
+            messages.scrollTop = messages.scrollHeight;
+            return;
+        }
+
+        if (data.type === "stream_end") {
+            clearResponseTimer();
+            if (streamingElement && !streamingText.trim()) {
+                streamingElement.innerHTML = renderMarkdown("Process completed successfully but returned no output.");
+            }
+            streamingElement = null;
+            streamingText = "";
+            transition(STATES.AUTHENTICATED);
             return;
         }
 
@@ -160,6 +201,29 @@
             updateModelOptionButtons();
             return;
         }
+    }
+
+    function createStreamingRow() {
+        const avatarHtml = '<div class="avatar avatar-bot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg></div>';
+
+        const row = document.createElement("div");
+        row.className = "message-row";
+        row.innerHTML = `
+            <div class="message-avatar">${avatarHtml}</div>
+            <div class="message-content">
+                <div class="message-bubble message-bot markdown-body">
+                    <div class="thinking-indicator">
+                        <span class="thinking-text">Thinking</span>
+                        <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+
+        return row.querySelector(".message-bubble");
     }
 
     function renderState() {
@@ -265,13 +329,14 @@
             ? '<div class="avatar avatar-user"><span>U</span></div>'
             : '<div class="avatar avatar-bot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg></div>';
 
-        const bubbleClass = isUser ? "message-user" : "message-bot";
+        const bubbleClass = isUser ? "message-user" : "message-bot markdown-body";
+        const bodyHtml = isUser ? escapeHtml(data.body) : renderMarkdown(data.body);
 
         const html = `
             <div class="message-row">
                 <div class="message-avatar">${avatarHtml}</div>
                 <div class="message-content">
-                    <div class="message-bubble ${bubbleClass}">${escapeHtml(data.body)}</div>
+                    <div class="message-bubble ${bubbleClass}">${bodyHtml}</div>
                     <div class="message-time-wrapper"><time class="message-time">${timeStr}</time></div>
                 </div>
             </div>

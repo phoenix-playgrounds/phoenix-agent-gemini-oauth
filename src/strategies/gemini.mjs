@@ -244,4 +244,67 @@ export class GeminiStrategy extends BaseStrategy {
             });
         });
     }
+
+    executePromptStreaming(prompt, model, onChunk) {
+        return new Promise((resolve, reject) => {
+            const playgroundDir = path.resolve(process.cwd(), 'playground');
+            if (!fs.existsSync(playgroundDir)) {
+                fs.mkdirSync(playgroundDir, { recursive: true });
+            }
+
+            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
+
+            const geminiProcess = spawn('gemini', geminiArgs, {
+                env: { ...process.env, NO_BROWSER: 'true' },
+                cwd: playgroundDir,
+                shell: false
+            });
+
+            let errorResult = '';
+
+            geminiProcess.stdout.on('data', (data) => {
+                const text = data.toString();
+                console.log("[GEMINI PROMPT STDOUT]:", text.trim());
+                onChunk(text);
+            });
+
+            geminiProcess.stderr.on('data', (data) => {
+                const text = data.toString();
+                errorResult += text;
+                console.log("[GEMINI PROMPT STDERR]:", text.trim());
+            });
+
+            geminiProcess.on('close', (code) => {
+                console.log(`[GEMINI] executePromptStreaming exited with code ${code}`);
+
+                const modelNotFound = errorResult.includes('ModelNotFoundError') || errorResult.includes('Requested entity was not found');
+                if (modelNotFound) {
+                    reject(new Error(`Invalid model specified. Please check the model name and try again.`));
+                    return;
+                }
+
+                const rateLimited = errorResult.includes('RESOURCE_EXHAUSTED') || errorResult.includes('MODEL_CAPACITY_EXHAUSTED') || errorResult.includes('status 429');
+                if (rateLimited) {
+                    reject(new Error(`Model is currently overloaded (rate limited). Please try again in a few minutes or switch to a different model.`));
+                    return;
+                }
+
+                if (code === 0 || code === null) {
+                    resolve();
+                } else {
+                    const finalError = [
+                        errorResult.trim() ? `STDERR: ${errorResult.trim()}` : "",
+                        `Process exited with code ${code}`
+                    ].filter(Boolean).join("\n\n");
+
+                    reject(new Error(finalError));
+                }
+            });
+
+            geminiProcess.on('error', (err) => {
+                console.error("[GEMINI PROMPT ERROR]:", err);
+                reject(err);
+            });
+        });
+    }
 }

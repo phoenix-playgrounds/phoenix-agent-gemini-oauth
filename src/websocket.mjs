@@ -130,9 +130,18 @@ export class Orchestrator extends EventEmitter {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf8");
             const fullPrompt = this._buildPromptWithContext(systemPrompt, text);
             const model = this.modelStore.get();
-            const result = await this.strategy.executePrompt(fullPrompt, model);
-            const assistantMessage = this.messages.add("assistant", result);
-            this._send("message", assistantMessage);
+
+            let accumulated = "";
+            this._send("stream_start", {});
+
+            await this.strategy.executePromptStreaming(fullPrompt, model, (chunk) => {
+                accumulated += chunk;
+                this._send("stream_chunk", { text: chunk });
+            });
+
+            const finalText = accumulated || "Process completed successfully but returned no output.";
+            this.messages.add("assistant", finalText);
+            this._send("stream_end", {});
         } catch (err) {
             this._send("error", { message: err.message });
         } finally {

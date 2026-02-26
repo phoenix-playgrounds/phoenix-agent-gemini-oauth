@@ -210,6 +210,51 @@ export class ClaudeCodeStrategy extends BaseStrategy {
         });
     }
 
+    executePromptStreaming(prompt, _model, onChunk) {
+        return new Promise((resolve, reject) => {
+            if (!fs.existsSync(PLAYGROUND_DIR)) {
+                fs.mkdirSync(PLAYGROUND_DIR, { recursive: true });
+            }
+
+            const args = ['-p', prompt, '--dangerously-skip-permissions'];
+
+            for (const dir of this._getPlaygroundDirs()) {
+                args.push('--add-dir', dir);
+            }
+
+            const claudeProcess = spawn('claude', args, {
+                env: { ...process.env, BROWSER: '/bin/true', DISPLAY: '' },
+                cwd: PLAYGROUND_DIR,
+                shell: false
+            });
+
+            let errorResult = '';
+
+            claudeProcess.stdout.on('data', (data) => {
+                onChunk(data.toString());
+            });
+
+            claudeProcess.stderr.on('data', (data) => {
+                errorResult += data.toString();
+            });
+
+            claudeProcess.on('close', (code) => {
+                if (code !== 0) {
+                    console.warn(`Claude process exited with code ${code}`);
+                }
+                if (code !== 0 && errorResult.trim()) {
+                    reject(new Error(errorResult || `Process exited with code ${code}`));
+                } else {
+                    resolve();
+                }
+            });
+
+            claudeProcess.on('error', (err) => {
+                reject(err);
+            });
+        });
+    }
+
     _getPlaygroundDirs() {
         try {
             if (!fs.existsSync(PLAYGROUND_DIR)) return [];

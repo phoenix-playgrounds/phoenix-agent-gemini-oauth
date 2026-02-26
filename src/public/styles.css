@@ -485,24 +485,196 @@ body {
 }
 
 .message-bubble {
-    background: var(--base-100);
-    border: 1px solid var(--base-300);
     border-radius: var(--radius);
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
     line-height: 1.6;
-    white-space: pre-wrap;
     word-break: break-word;
     max-width: 85%;
 }
 
 .message-bubble.message-bot {
-    border-top-left-radius: 0.25rem;
-    background: rgba(29, 35, 42, 0.6);
+    background: transparent;
+    border: none;
+    padding: 0.25rem 0;
+    white-space: normal;
+    max-width: 100%;
 }
 
 .message-bubble.message-user {
+    background: var(--base-100);
+    border: 1px solid var(--base-300);
     border-top-right-radius: 0.25rem;
+    white-space: pre-wrap;
+}
+
+.markdown-body p {
+    margin: 0 0 0.75rem 0;
+}
+
+.markdown-body p:last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+    color: #e0e0e0;
+    margin: 1rem 0 0.5rem 0;
+    font-weight: 600;
+}
+
+.markdown-body h1:first-child,
+.markdown-body h2:first-child,
+.markdown-body h3:first-child {
+    margin-top: 0;
+}
+
+.markdown-body h1 {
+    font-size: 1.25rem;
+}
+
+.markdown-body h2 {
+    font-size: 1.125rem;
+}
+
+.markdown-body h3 {
+    font-size: 1rem;
+}
+
+.markdown-body code {
+    background: var(--base-300);
+    padding: 0.15rem 0.375rem;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.8125rem;
+    color: #e8b4ff;
+}
+
+.markdown-body pre {
+    background: var(--base-300);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+}
+
+.markdown-body pre code {
+    background: transparent;
+    padding: 0;
+    color: var(--base-content);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.markdown-body li {
+    margin: 0.25rem 0;
+}
+
+.markdown-body blockquote {
+    border-left: 3px solid var(--primary);
+    padding: 0.25rem 0.75rem;
+    margin: 0.5rem 0;
+    color: var(--base-content-muted);
+}
+
+.markdown-body a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.markdown-body a:hover {
+    text-decoration: underline;
+}
+
+.markdown-body hr {
+    border: none;
+    border-top: 1px solid var(--base-300);
+    margin: 0.75rem 0;
+}
+
+.markdown-body strong {
+    color: #e0e0e0;
+    font-weight: 600;
+}
+
+.markdown-body table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    width: 100%;
+}
+
+.markdown-body th,
+.markdown-body td {
+    border: 1px solid var(--base-300);
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    text-align: left;
+}
+
+.markdown-body th {
+    background: var(--base-300);
+    color: #e0e0e0;
+    font-weight: 600;
+}
+
+.thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    color: var(--base-content-muted);
+    font-size: 0.875rem;
+    animation: thinkingFadeIn 300ms ease;
+}
+
+.thinking-text {
+    opacity: 0.7;
+}
+
+.thinking-dots span {
+    animation: thinkingDot 1.4s ease-in-out infinite;
+    opacity: 0.2;
+}
+
+.thinking-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes thinkingDot {
+
+    0%,
+    80%,
+    100% {
+        opacity: 0.2;
+    }
+
+    40% {
+        opacity: 1;
+    }
+}
+
+@keyframes thinkingFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .message-time-wrapper {

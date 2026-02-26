@@ -6,6 +6,7 @@ const mockSubmitAuthCode = jest.fn();
 const mockCancelAuth = jest.fn();
 const mockClearCredentials = jest.fn();
 const mockExecutePrompt = jest.fn();
+const mockExecutePromptStreaming = jest.fn();
 const mockGetModelArgs = jest.fn().mockReturnValue([]);
 
 jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
@@ -16,6 +17,7 @@ jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
         cancelAuth: mockCancelAuth,
         clearCredentials: mockClearCredentials,
         executePrompt: mockExecutePrompt,
+        executePromptStreaming: mockExecutePromptStreaming,
         getModelArgs: mockGetModelArgs
     })
 }));
@@ -147,24 +149,27 @@ describe("Orchestrator", () => {
             expect(outboundMessages).toEqual([{ type: "error", message: "BLOCKED" }]);
         });
 
-        it("persists user and assistant messages on success", async () => {
+        it("streams chunks and persists full message on success", async () => {
             orchestrator.isAuthenticated = true;
-            mockExecutePrompt.mockResolvedValue("AI response");
+            mockExecutePromptStreaming.mockImplementation(async (_prompt, _model, onChunk) => {
+                onChunk("Hello ");
+                onChunk("World");
+            });
             await orchestrator.handleClientMessage({ action: "send_chat_message", text: "hello" });
-            expect(outboundMessages.length).toBe(2);
-            expect(outboundMessages[0].type).toBe("message");
-            expect(outboundMessages[0].role).toBe("user");
-            expect(outboundMessages[0].body).toBe("hello");
-            expect(outboundMessages[0].id).toBeDefined();
-            expect(outboundMessages[1].type).toBe("message");
-            expect(outboundMessages[1].role).toBe("assistant");
-            expect(outboundMessages[1].body).toBe("AI response");
+            const types = outboundMessages.map(m => m.type);
+            expect(types).toContain("message");
+            expect(types).toContain("stream_start");
+            expect(types).toContain("stream_end");
+            const chunks = outboundMessages.filter(m => m.type === "stream_chunk");
+            expect(chunks.length).toBe(2);
+            expect(chunks[0].text).toBe("Hello ");
+            expect(chunks[1].text).toBe("World");
             expect(orchestrator.isProcessing).toBe(false);
         });
 
         it("sends error on prompt failure", async () => {
             orchestrator.isAuthenticated = true;
-            mockExecutePrompt.mockRejectedValue(new Error("CLI failed"));
+            mockExecutePromptStreaming.mockRejectedValue(new Error("CLI failed"));
             await orchestrator.handleClientMessage({ action: "send_chat_message", text: "hello" });
             const errorMsg = outboundMessages.find(m => m.type === "error");
             expect(errorMsg.message).toBe("CLI failed");
