@@ -1,8 +1,8 @@
-FROM node:25-alpine AS builder
+FROM node:25-slim AS builder
 
 ARG AGENT_PROVIDER=gemini
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 RUN --mount=type=cache,target=/root/.npm \
     if [ "$AGENT_PROVIDER" = "gemini" ]; then \
@@ -13,7 +13,6 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install -g @openai/codex@0.104.0; \
     fi
 
-# Safely remove only large source maps to save space
 RUN find /usr/local/lib/node_modules -type f -name "*.map" -delete 2>/dev/null || true
 
 WORKDIR /app
@@ -24,14 +23,16 @@ COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev
 
-FROM node:25-alpine
+FROM node:25-slim
 
 ARG AGENT_PROVIDER=gemini
 
-RUN apk add --no-cache dumb-init bash curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init bash curl procps git \
     && if [ "$AGENT_PROVIDER" = "claude_code" ]; then \
-    apk add --no-cache dbus gnome-keyring libsecret; \
-    fi
+    apt-get install -y --no-install-recommends dbus gnome-keyring libsecret-1-0; \
+    fi \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
