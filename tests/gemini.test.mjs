@@ -114,6 +114,31 @@ describe("GeminiStrategy", () => {
         await promise;
     });
 
+    it("resolves with output when exit code is 1 but stdout has content", async () => {
+        const onStdoutData = jest.fn();
+        const onStderrData = jest.fn();
+        const callbacks = {};
+        const mockProcess = {
+            stdout: { on: onStdoutData },
+            stderr: { on: onStderrData },
+            on: (event, cb) => {
+                callbacks[event] = cb;
+            }
+        };
+
+        mockSpawn.mockReturnValue(mockProcess);
+        jest.spyOn(console, 'warn').mockImplementation(() => { });
+
+        const promise = strategy.executePrompt("test prompt");
+
+        const stdoutCallback = onStdoutData.mock.calls[0][1];
+        stdoutCallback(Buffer.from("Partial LLM output before crash"));
+        callbacks.close(1);
+
+        const result = await promise;
+        expect(result).toBe("Partial LLM output before crash");
+    });
+
     it("rejects with friendly error on ModelNotFoundError", async () => {
         const onStdoutData = jest.fn();
         const onStderrData = jest.fn();

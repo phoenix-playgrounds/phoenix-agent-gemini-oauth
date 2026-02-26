@@ -203,12 +203,12 @@ export class GeminiStrategy extends BaseStrategy {
             });
 
             geminiProcess.on('close', (code) => {
-                console.log(`[GEMINI DEBUG] executePrompt exited with code ${code}`);
-                console.log(`[GEMINI DEBUG] Full stdout: ${outputResult}`);
-                console.log(`[GEMINI DEBUG] Full stderr: ${errorResult}`);
-
-                if (code !== 0) {
-                    console.warn(`Gemini process exited with code ${code}`);
+                console.log(`[GEMINI] executePrompt exited with code ${code}`);
+                if (outputResult.trim()) {
+                    console.log(`[GEMINI] stdout length: ${outputResult.length} chars`);
+                }
+                if (errorResult.trim()) {
+                    console.log(`[GEMINI] stderr: ${errorResult.trim()}`);
                 }
 
                 const modelNotFound = errorResult.includes('ModelNotFoundError') || errorResult.includes('Requested entity was not found');
@@ -217,11 +217,13 @@ export class GeminiStrategy extends BaseStrategy {
                     return;
                 }
 
-                if (code === 0) {
+                if (code === 0 || outputResult.trim()) {
+                    if (code !== 0) {
+                        console.warn(`[GEMINI] Non-zero exit (${code}) but returning collected output`);
+                    }
                     resolve(outputResult || "Process completed successfully but returned no output.");
                 } else {
                     const finalError = [
-                        outputResult.trim(),
                         errorResult.trim() ? `STDERR: ${errorResult.trim()}` : "",
                         `Process exited with code ${code}`
                     ].filter(Boolean).join("\n\n");
