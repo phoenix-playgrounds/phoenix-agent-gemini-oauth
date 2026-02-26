@@ -17,6 +17,7 @@
     let ws = null;
     let authUrl = null;
     let deviceCode = null;
+    let isManualToken = false;
     let responseTimer = null;
     let errorMessage = null;
     let reconnectTimer = null;
@@ -140,19 +141,30 @@
 
         if (data.type === "auth_url_generated") {
             authUrl = data.url;
+            isManualToken = false;
             transition(STATES.AUTH_PENDING);
             return;
         }
 
         if (data.type === "auth_device_code") {
             deviceCode = data.code;
+            isManualToken = false;
             renderState();
+            return;
+        }
+
+        if (data.type === "auth_manual_token") {
+            authUrl = null;
+            deviceCode = null;
+            isManualToken = true;
+            transition(STATES.AUTH_PENDING);
             return;
         }
 
         if (data.type === "auth_success") {
             authUrl = null;
             deviceCode = null;
+            isManualToken = false;
             transition(STATES.AUTHENTICATED);
             return;
         }
@@ -291,23 +303,34 @@
     }
 
     function renderAuthModal() {
-        if (state === STATES.AUTH_PENDING && authUrl) {
+        if (state === STATES.AUTH_PENDING && (authUrl || deviceCode || isManualToken)) {
             if (!authModal.open) authModal.showModal();
-            authUrlDisplay.classList.remove("hidden");
-            authUrlLink.href = authUrl;
 
-            if (deviceCode) {
-                authCodeLabel.textContent = "One-time device code";
-                authCodeInput.value = deviceCode;
-                authCodeInput.readOnly = true;
-                authCodeSubmitBtn.classList.add("hidden");
-            } else {
-                authCodeLabel.textContent = "Paste authorization code";
+            if (isManualToken) {
+                authUrlDisplay.classList.add("hidden");
+                authCodeLabel.textContent = "Paste Claude Code OAuth Token";
                 authCodeInput.value = "";
                 authCodeInput.readOnly = false;
                 authCodeSubmitBtn.classList.remove("hidden");
                 authCodeSubmitBtn.disabled = false;
                 authCodeSubmitBtn.textContent = "Submit";
+            } else {
+                authUrlDisplay.classList.remove("hidden");
+                if (authUrl) authUrlLink.href = authUrl;
+
+                if (deviceCode) {
+                    authCodeLabel.textContent = "One-time device code";
+                    authCodeInput.value = deviceCode;
+                    authCodeInput.readOnly = true;
+                    authCodeSubmitBtn.classList.add("hidden");
+                } else {
+                    authCodeLabel.textContent = "Paste authorization code";
+                    authCodeInput.value = "";
+                    authCodeInput.readOnly = false;
+                    authCodeSubmitBtn.classList.remove("hidden");
+                    authCodeSubmitBtn.disabled = false;
+                    authCodeSubmitBtn.textContent = "Submit";
+                }
             }
         } else {
             if (authModal.open) authModal.close();
@@ -423,6 +446,7 @@
     function cancelAuth() {
         authUrl = null;
         deviceCode = null;
+        isManualToken = false;
         send({ action: "cancel_auth" });
         transition(STATES.UNAUTHENTICATED);
     }
