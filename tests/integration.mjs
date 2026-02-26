@@ -28,11 +28,7 @@ const run = async () => {
 
     console.log("Connecting WebSocket...");
     const { WebSocket } = await import("ws");
-    const ws = new WebSocket(`ws://localhost:${CHAT_PORT}/ws`, {
-        headers: {
-            Cookie: "agent_auth=testpassword123"
-        }
-    });
+    const ws = new WebSocket(`ws://localhost:${CHAT_PORT}/ws?token=testpassword123`);
 
     const messages = [];
 
@@ -79,7 +75,7 @@ const run = async () => {
             port: CHAT_PORT,
             path: '/api/messages',
             headers: {
-                Cookie: "agent_auth=testpassword123"
+                Authorization: "Bearer testpassword123"
             }
         };
         fetchApi.get(options, (res) => {

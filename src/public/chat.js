@@ -56,9 +56,23 @@
         return escapeHtml(text);
     }
 
+    function getToken() {
+        return localStorage.getItem('agent_password') || '';
+    }
+
+    function redirectToLogin() {
+        window.location.href = '/login.html';
+    }
+
     function connect() {
+        const token = getToken();
+        if (!token) {
+            redirectToLogin();
+            return;
+        }
+
         const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        const url = `${protocol}//${location.host}/ws`;
+        const url = `${protocol}//${location.host}/ws?token=${encodeURIComponent(token)}`;
 
         ws = new WebSocket(url);
 
@@ -83,6 +97,12 @@
 
         ws.onclose = (event) => {
             console.log("[WS] Disconnected", event.code);
+            if (event.code === 4001) {
+                // Unauthorized
+                localStorage.removeItem('agent_password');
+                redirectToLogin();
+                return;
+            }
             if (event.code === 4000) {
                 transition(STATES.ERROR);
                 errorMessage = "Another session is already active";
@@ -499,7 +519,18 @@
 
     async function loadMessages() {
         try {
-            const res = await fetch("/api/messages");
+            const token = getToken();
+            if (!token) return redirectToLogin();
+
+            const res = await fetch("/api/messages", {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.status === 401) {
+                localStorage.removeItem('agent_password');
+                return redirectToLogin();
+            }
+
             const data = await res.json();
             messages.innerHTML = "";
             data.forEach(renderMessage);
@@ -520,8 +551,16 @@
     loadModelOptions();
 
     function loadModelOptions() {
-        fetch("/api/model-options")
-            .then(res => res.json())
+        const token = getToken();
+        if (!token) return;
+
+        fetch("/api/model-options", {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(res => {
+                if (res.status === 401) throw new Error('Unauthorized');
+                return res.json();
+            })
             .then(options => {
                 modelOptionsContainer.innerHTML = "";
                 options.forEach(opt => {

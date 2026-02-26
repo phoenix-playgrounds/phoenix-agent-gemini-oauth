@@ -17,9 +17,8 @@ export const createChatServer = (orchestrator) => {
     const wss = new WebSocketServer({ server, path: "/ws" });
 
     app.use(express.json());
-    app.use(cookieParser());
 
-    // Middleware to check authentication
+    // Middleware to check authentication for API routes
     const requireAuth = (req, res, next) => {
         const requiredPassword = process.env.AGENT_PASSWORD;
         // If no password is required, allow access
@@ -27,22 +26,17 @@ export const createChatServer = (orchestrator) => {
             return next();
         }
 
-        // Check password from cookie
-        if (req.cookies && req.cookies.agent_auth === requiredPassword) {
+        let token = null;
+        if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+            token = req.headers.authorization.split(" ")[1];
+        } else if (req.query.token) {
+            token = req.query.token;
+        }
+
+        if (token === requiredPassword) {
             return next();
         }
 
-        // If not authenticated and requesting the page, redirect to login
-        if (req.path === '/' || req.path === '/index.html') {
-            return res.sendFile(path.join(__dirname, "public", "login.html"));
-        }
-
-        // Allow public assets
-        if (req.path.endsWith('.css') || req.path.endsWith('.js') || req.path.endsWith('.svg')) {
-            return next();
-        }
-
-        // For other routes (API), return 401
         res.status(401).json({ error: "Unauthorized" });
     };
 
@@ -55,30 +49,21 @@ export const createChatServer = (orchestrator) => {
         }
 
         if (providedPassword === requiredPassword) {
-            const isSecure = req.secure || req.get('x-forwarded-proto') === 'https';
-
-            // Set cookie valid for 30 days
-            res.cookie("agent_auth", providedPassword, {
-                httpOnly: true,
-                secure: isSecure,
-                sameSite: isSecure ? "none" : "lax",
-                maxAge: 30 * 24 * 60 * 60 * 1000
-            });
-            return res.json({ success: true });
+            return res.json({ success: true, token: providedPassword });
         }
 
         res.status(401).json({ success: false, error: "Invalid password" });
     });
 
-    // Apply auth middleware before serving static files (except login context handled inside)
-    app.use(requireAuth);
+    // Make frontend assets fully public so iframe can load them and handle its own auth routing
     app.use(express.static(path.join(__dirname, "public")));
 
-    app.get("/api/messages", (_req, res) => {
+
+    app.get("/api/messages", requireAuth, (_req, res) => {
         res.json(orchestrator.messages.all());
     });
 
-    app.get("/api/model-options", (_req, res) => {
+    app.get("/api/model-options", requireAuth, (_req, res) => {
         const raw = process.env.MODEL_OPTIONS || "";
         const options = raw.split(",").map(s => s.trim()).filter(Boolean);
         res.json(options);
@@ -100,11 +85,10 @@ export const createChatServer = (orchestrator) => {
         const requiredPassword = process.env.AGENT_PASSWORD;
 
         if (requiredPassword) {
-            const cookieHeader = req.headers.cookie || "";
-            const match = cookieHeader.match(/agent_auth=([^;]+)/);
-            const cookieValue = match ? decodeURIComponent(match[1]) : null;
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const token = url.searchParams.get("token");
 
-            if (cookieValue !== requiredPassword) {
+            if (token !== requiredPassword) {
                 ws.close(4001, "Unauthorized");
                 return;
             }

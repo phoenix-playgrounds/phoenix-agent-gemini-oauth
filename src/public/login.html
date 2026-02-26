@@ -192,6 +192,7 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
+                    localStorage.setItem('agent_password', password);
                     window.location.href = '/';
                 } else {
                     errorEl.textContent = data.error || 'Authentication failed';
