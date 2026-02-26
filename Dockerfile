@@ -13,30 +13,10 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install -g @openai/codex@0.104.0; \
     fi
 
-RUN find /usr/local/lib/node_modules -type d \( \
-    -name "test" -o -name "tests" -o -name "__tests__" \
-    -o -name "docs" -o -name "doc" -o -name "example" -o -name "examples" \
-    -o -name ".github" -o -name ".vscode" \
-    \) \
-    -not -path "*/codex-linux-*" \
-    -not -path "*/codex-darwin-*" \
-    -not -path "*/codex-win32-*" \
-    -prune -exec rm -rf {} + 2>/dev/null; \
-    find /usr/local/lib/node_modules -type f \( \
-    -name "*.map" -o -name "*.md" -o -name "*.markdown" \
-    -o -name "CHANGELOG*" -o -name "CHANGES*" -o -name "HISTORY*" \
-    -o -name "LICENSE*" -o -name "LICENCE*" -o -name "NOTICE*" \
-    -o -name "AUTHORS*" -o -name "CONTRIBUTORS*" \
-    -o -name ".npmignore" -o -name ".eslintrc*" -o -name ".prettierrc*" \
-    -o -name ".editorconfig" -o -name ".travis.yml" -o -name ".babelrc" \
-    -o -name "tsconfig.json" -o -name "tslint.json" \
-    -o -name "Makefile" -o -name "Gruntfile*" -o -name "Gulpfile*" \
-    \) -delete 2>/dev/null; \
-    find /usr/local/lib/node_modules -type d -empty -delete 2>/dev/null; \
-    true
+# Safely remove only large source maps to save space
+RUN find /usr/local/lib/node_modules -type f -name "*.map" -delete 2>/dev/null || true
 
 WORKDIR /app
-
 ENV NODE_ENV=production
 
 COPY package*.json ./
