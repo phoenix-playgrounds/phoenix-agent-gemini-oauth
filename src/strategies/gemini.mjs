@@ -10,6 +10,7 @@ export class GeminiStrategy extends BaseStrategy {
         super();
         this.activeAuthProcess = null;
         this.currentConnection = null;
+        this._hasSession = false;
     }
 
     executeAuth(connection) {
@@ -172,79 +173,6 @@ export class GeminiStrategy extends BaseStrategy {
         return ['-m', model];
     }
 
-    executePrompt(prompt, model) {
-        return new Promise((resolve, reject) => {
-            const playgroundDir = path.resolve(process.cwd(), 'playground');
-            if (!fs.existsSync(playgroundDir)) {
-                fs.mkdirSync(playgroundDir, { recursive: true });
-            }
-
-            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
-
-            const geminiProcess = spawn('gemini', geminiArgs, {
-                env: { ...process.env, NO_BROWSER: 'true' },
-                cwd: playgroundDir,
-                shell: false
-            });
-
-            let outputResult = '';
-            let errorResult = '';
-
-            geminiProcess.stdout.on('data', (data) => {
-                const text = data.toString();
-                outputResult += text;
-                console.log("[GEMINI PROMPT STDOUT]:", text.trim());
-            });
-
-            geminiProcess.stderr.on('data', (data) => {
-                const text = data.toString();
-                errorResult += text;
-                console.log("[GEMINI PROMPT STDERR]:", text.trim());
-            });
-
-            geminiProcess.on('close', (code) => {
-                console.log(`[GEMINI] executePrompt exited with code ${code}`);
-                if (outputResult.trim()) {
-                    console.log(`[GEMINI] stdout length: ${outputResult.length} chars`);
-                }
-                if (errorResult.trim()) {
-                    console.log(`[GEMINI] stderr: ${errorResult.trim()}`);
-                }
-
-                const modelNotFound = errorResult.includes('ModelNotFoundError') || errorResult.includes('Requested entity was not found');
-                if (modelNotFound) {
-                    reject(new Error(`Invalid model specified. Please check the model name and try again.`));
-                    return;
-                }
-
-                const rateLimited = errorResult.includes('RESOURCE_EXHAUSTED') || errorResult.includes('MODEL_CAPACITY_EXHAUSTED') || errorResult.includes('status 429');
-                if (rateLimited && !outputResult.trim()) {
-                    reject(new Error(`Model is currently overloaded (rate limited). Please try again in a few minutes or switch to a different model.`));
-                    return;
-                }
-
-                if (code === 0 || outputResult.trim()) {
-                    if (code !== 0) {
-                        console.warn(`[GEMINI] Non-zero exit (${code}) but returning collected output`);
-                    }
-                    resolve(outputResult || "Process completed successfully but returned no output.");
-                } else {
-                    const finalError = [
-                        errorResult.trim() ? `STDERR: ${errorResult.trim()}` : "",
-                        `Process exited with code ${code}`
-                    ].filter(Boolean).join("\n\n");
-
-                    reject(new Error(finalError));
-                }
-            });
-
-            geminiProcess.on('error', (err) => {
-                console.error("[GEMINI PROMPT ERROR]:", err);
-                reject(err);
-            });
-        });
-    }
-
     executePromptStreaming(prompt, model, onChunk) {
         return new Promise((resolve, reject) => {
             const playgroundDir = path.resolve(process.cwd(), 'playground');
@@ -252,7 +180,11 @@ export class GeminiStrategy extends BaseStrategy {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const geminiArgs = [...this.getModelArgs(model), '--yolo', '-p', prompt];
+            const geminiArgs = [
+                ...this.getModelArgs(model),
+                ...(this._hasSession ? ['--resume'] : []),
+                '--yolo', '-p', prompt
+            ];
 
             const geminiProcess = spawn('gemini', geminiArgs, {
                 env: { ...process.env, NO_BROWSER: 'true' },
@@ -290,6 +222,7 @@ export class GeminiStrategy extends BaseStrategy {
                 }
 
                 if (code === 0 || code === null) {
+                    this._hasSession = true;
                     resolve();
                 } else {
                     const finalError = [

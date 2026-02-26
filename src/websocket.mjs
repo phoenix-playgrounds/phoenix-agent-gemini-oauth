@@ -128,7 +128,7 @@ export class Orchestrator extends EventEmitter {
 
         try {
             const systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf8");
-            const fullPrompt = this._buildPromptWithContext(systemPrompt, text);
+            const fullPrompt = `${systemPrompt}\n\n${text}`;
             const model = this.modelStore.get();
 
             let accumulated = "";
@@ -147,21 +147,6 @@ export class Orchestrator extends EventEmitter {
         } finally {
             this.isProcessing = false;
         }
-    }
-
-    _buildPromptWithContext(systemPrompt, currentMessage) {
-        const history = this.messages.all();
-        const pastMessages = history.slice(0, -1);
-
-        if (pastMessages.length === 0) {
-            return `${systemPrompt}\n\n${currentMessage}`;
-        }
-
-        const contextLines = pastMessages.map((m) =>
-            `[${m.role.toUpperCase()}]: ${m.body}`
-        ).join("\n");
-
-        return `${systemPrompt}\n\n--- CONVERSATION HISTORY ---\n${contextLines}\n--- END HISTORY ---\n\n--- CURRENT MESSAGE ---\n${currentMessage}\n--- END CURRENT MESSAGE ---`;
     }
 
     _createStrategyBridge() {

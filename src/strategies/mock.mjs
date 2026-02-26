@@ -25,12 +25,13 @@ export class MockStrategy extends BaseStrategy {
         return Promise.resolve(true);
     }
 
-    executePrompt(prompt) {
-        console.log(`[MOCK] executePrompt: Mocking prompt execution for: ${prompt.substring(0, 50)}...`);
+    executePromptStreaming(_prompt, _model, onChunk) {
         return new Promise((resolve) => {
             setTimeout(() => {
                 const timestamp = new Date().toISOString();
-                resolve(`[MOCKED RESPONSE] Hello! The current timestamp is ${timestamp}`);
+                onChunk(`[MOCKED RESPONSE] Hello! `);
+                onChunk(`The current timestamp is ${timestamp}`);
+                resolve();
             }, 1000);
         });
     }

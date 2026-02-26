@@ -17,6 +17,7 @@ export class ClaudeCodeStrategy extends BaseStrategy {
         this.activeAuthProcess = null;
         this.currentConnection = null;
         this.callbackPort = null;
+        this._hasSession = false;
     }
 
     executeAuth(connection) {
@@ -162,61 +163,16 @@ export class ClaudeCodeStrategy extends BaseStrategy {
         });
     }
 
-    executePrompt(prompt) {
-        return new Promise((resolve, reject) => {
-            if (!fs.existsSync(PLAYGROUND_DIR)) {
-                fs.mkdirSync(PLAYGROUND_DIR, { recursive: true });
-            }
-
-            const args = ['-p', prompt, '--dangerously-skip-permissions'];
-
-            for (const dir of this._getPlaygroundDirs()) {
-                args.push('--add-dir', dir);
-            }
-
-            const claudeProcess = spawn('claude', args, {
-                env: { ...process.env, BROWSER: '/bin/true', DISPLAY: '' },
-                cwd: PLAYGROUND_DIR,
-                shell: false
-            });
-
-            let outputResult = '';
-            let errorResult = '';
-
-            claudeProcess.stdout.on('data', (data) => {
-                outputResult += data.toString();
-            });
-
-            claudeProcess.stderr.on('data', (data) => {
-                errorResult += data.toString();
-            });
-
-            claudeProcess.on('close', (code) => {
-                if (code !== 0) {
-                    console.warn(`Claude process exited with code ${code}`);
-                }
-                if (outputResult.trim()) {
-                    resolve(outputResult);
-                } else if (code !== 0) {
-                    reject(new Error(errorResult || `Process exited with code ${code}`));
-                } else {
-                    resolve(outputResult);
-                }
-            });
-
-            claudeProcess.on('error', (err) => {
-                reject(err);
-            });
-        });
-    }
-
     executePromptStreaming(prompt, _model, onChunk) {
         return new Promise((resolve, reject) => {
             if (!fs.existsSync(PLAYGROUND_DIR)) {
                 fs.mkdirSync(PLAYGROUND_DIR, { recursive: true });
             }
 
-            const args = ['-p', prompt, '--dangerously-skip-permissions'];
+            const args = [
+                ...(this._hasSession ? ['--continue'] : []),
+                '-p', prompt, '--dangerously-skip-permissions'
+            ];
 
             for (const dir of this._getPlaygroundDirs()) {
                 args.push('--add-dir', dir);
@@ -245,6 +201,7 @@ export class ClaudeCodeStrategy extends BaseStrategy {
                 if (code !== 0 && errorResult.trim()) {
                     reject(new Error(errorResult || `Process exited with code ${code}`));
                 } else {
+                    this._hasSession = true;
                     resolve();
                 }
             });

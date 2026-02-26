@@ -92,34 +92,69 @@ describe("OpenaiCodexStrategy", () => {
         expect(mockChannel.sendAuthSuccess).toHaveBeenCalled();
     });
 
-    it("executes prompt via codex exec --full-auto", async () => {
-        const onStdoutData = jest.fn();
-        const onStderrData = jest.fn();
-        const callbacks = {};
-        const mockProcess = {
-            stdout: { on: onStdoutData },
-            stderr: { on: onStderrData },
-            on: (event, cb) => {
-                callbacks[event] = cb;
-            }
-        };
+    describe("executePromptStreaming", () => {
+        it("does not include resume on first call", async () => {
+            const onStdoutData = jest.fn();
+            const onStderrData = jest.fn();
+            const callbacks = {};
+            const mockProcess = {
+                stdout: { on: onStdoutData },
+                stderr: { on: onStderrData },
+                on: (event, cb) => { callbacks[event] = cb; }
+            };
 
-        mockExistsSync.mockReturnValue(true);
-        mockSpawn.mockReturnValue(mockProcess);
+            mockExistsSync.mockReturnValue(true);
+            mockSpawn.mockReturnValue(mockProcess);
 
-        const promise = strategy.executePrompt("test prompt");
+            const onChunk = jest.fn();
+            const promise = strategy.executePromptStreaming("test prompt", null, onChunk);
 
-        expect(mockSpawn).toHaveBeenCalledWith("codex", ["exec", "--yolo", "test prompt"], expect.objectContaining({
-            shell: false
-        }));
+            expect(mockSpawn).toHaveBeenCalledWith("codex", ["exec", "--yolo", "test prompt"], expect.objectContaining({
+                shell: false
+            }));
 
-        const stdoutCallback = onStdoutData.mock.calls[0][1];
-        stdoutCallback(Buffer.from("Codex result here"));
+            const stdoutCallback = onStdoutData.mock.calls[0][1];
+            stdoutCallback(Buffer.from("Codex result here"));
+            expect(onChunk).toHaveBeenCalledWith("Codex result here");
 
-        callbacks.close(0);
+            callbacks.close(0);
+            await promise;
+        });
 
-        const result = await promise;
-        expect(result).toBe("Codex result here");
+        it("includes resume --last --yolo on subsequent calls after success", async () => {
+            const createMockProcess = () => {
+                const callbacks = {};
+                return {
+                    process: {
+                        stdout: { on: jest.fn((_, cb) => { callbacks.stdout = cb; }) },
+                        stderr: { on: jest.fn() },
+                        on: (event, cb) => { callbacks[event] = cb; }
+                    },
+                    callbacks
+                };
+            };
+
+            mockExistsSync.mockReturnValue(true);
+
+            const first = createMockProcess();
+            mockSpawn.mockReturnValue(first.process);
+            const p1 = strategy.executePromptStreaming("first", null, jest.fn());
+            first.callbacks.stdout(Buffer.from("ok"));
+            first.callbacks.close(0);
+            await p1;
+
+            const second = createMockProcess();
+            mockSpawn.mockReturnValue(second.process);
+            const p2 = strategy.executePromptStreaming("second", null, jest.fn());
+
+            expect(mockSpawn).toHaveBeenLastCalledWith("codex", ["exec", "resume", "--last", "--yolo", "second"], expect.objectContaining({
+                shell: false
+            }));
+
+            second.callbacks.stdout(Buffer.from("ok"));
+            second.callbacks.close(0);
+            await p2;
+        });
     });
 
     describe("checkAuthStatus", () => {

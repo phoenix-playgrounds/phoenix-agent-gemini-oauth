@@ -23,10 +23,6 @@ export class BaseStrategy {
         return [];
     }
 
-    executePrompt(_prompt, _model) {
-        throw new Error('Not implemented');
-    }
-
     executePromptStreaming(_prompt, _model, _onChunk) {
         throw new Error('Not implemented');
     }

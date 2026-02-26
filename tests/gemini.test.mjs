@@ -58,108 +58,132 @@ describe("GeminiStrategy", () => {
         );
     });
 
-    it("executes prompt and returns resolved result", async () => {
-        const onStdoutData = jest.fn();
-        const onStderrData = jest.fn();
-        const callbacks = {};
-        const mockProcess = {
-            stdout: { on: onStdoutData },
-            stderr: { on: onStderrData },
-            on: (event, cb) => {
-                callbacks[event] = cb;
-            }
-        };
+    describe("executePromptStreaming", () => {
+        it("does not include --resume on first call", async () => {
+            const onStdoutData = jest.fn();
+            const onStderrData = jest.fn();
+            const callbacks = {};
+            const mockProcess = {
+                stdout: { on: onStdoutData },
+                stderr: { on: onStderrData },
+                on: (event, cb) => { callbacks[event] = cb; }
+            };
 
-        mockSpawn.mockReturnValue(mockProcess);
+            mockSpawn.mockReturnValue(mockProcess);
 
-        const promise = strategy.executePrompt("test prompt");
+            const onChunk = jest.fn();
+            const promise = strategy.executePromptStreaming("test prompt", "", onChunk);
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["--yolo", "-p", "test prompt"], expect.objectContaining({
-            shell: false
-        }));
+            expect(mockSpawn).toHaveBeenCalledWith("gemini", ['--yolo', '-p', 'test prompt'], expect.objectContaining({
+                shell: false
+            }));
 
-        const stdoutCallback = onStdoutData.mock.calls[0][1];
-        stdoutCallback(Buffer.from("Gemini result here"));
+            const stdoutCallback = onStdoutData.mock.calls[0][1];
+            stdoutCallback(Buffer.from("result"));
+            callbacks.close(0);
 
-        callbacks.close(0);
+            await promise;
+        });
 
-        const result = await promise;
-        expect(result).toBe("Gemini result here");
-    });
+        it("includes --resume on subsequent calls after success", async () => {
+            const createMockProcess = () => {
+                const callbacks = {};
+                return {
+                    process: {
+                        stdout: { on: jest.fn((_, cb) => { callbacks.stdout = cb; }) },
+                        stderr: { on: jest.fn() },
+                        on: (event, cb) => { callbacks[event] = cb; }
+                    },
+                    callbacks
+                };
+            };
 
-    it("passes model args when model is provided", async () => {
-        const onStdoutData = jest.fn();
-        const onStderrData = jest.fn();
-        const callbacks = {};
-        const mockProcess = {
-            stdout: { on: onStdoutData },
-            stderr: { on: onStderrData },
-            on: (event, cb) => {
-                callbacks[event] = cb;
-            }
-        };
+            const first = createMockProcess();
+            mockSpawn.mockReturnValue(first.process);
+            const p1 = strategy.executePromptStreaming("first", "", jest.fn());
+            first.callbacks.stdout(Buffer.from("ok"));
+            first.callbacks.close(0);
+            await p1;
 
-        mockSpawn.mockReturnValue(mockProcess);
+            const second = createMockProcess();
+            mockSpawn.mockReturnValue(second.process);
+            const p2 = strategy.executePromptStreaming("second", "", jest.fn());
 
-        const promise = strategy.executePrompt("test prompt", "flash-lite");
+            expect(mockSpawn).toHaveBeenLastCalledWith("gemini", ['--resume', '--yolo', '-p', 'second'], expect.objectContaining({
+                shell: false
+            }));
 
-        expect(mockSpawn).toHaveBeenCalledWith("gemini", ["-m", "flash-lite", "--yolo", "-p", "test prompt"], expect.objectContaining({
-            shell: false
-        }));
+            second.callbacks.stdout(Buffer.from("ok"));
+            second.callbacks.close(0);
+            await p2;
+        });
 
-        const stdoutCallback = onStdoutData.mock.calls[0][1];
-        stdoutCallback(Buffer.from("result"));
-        callbacks.close(0);
+        it("includes model args when provided", async () => {
+            const onStdoutData = jest.fn();
+            const onStderrData = jest.fn();
+            const callbacks = {};
+            const mockProcess = {
+                stdout: { on: onStdoutData },
+                stderr: { on: onStderrData },
+                on: (event, cb) => { callbacks[event] = cb; }
+            };
 
-        await promise;
-    });
+            mockSpawn.mockReturnValue(mockProcess);
 
-    it("resolves with output when exit code is 1 but stdout has content", async () => {
-        const onStdoutData = jest.fn();
-        const onStderrData = jest.fn();
-        const callbacks = {};
-        const mockProcess = {
-            stdout: { on: onStdoutData },
-            stderr: { on: onStderrData },
-            on: (event, cb) => {
-                callbacks[event] = cb;
-            }
-        };
+            const promise = strategy.executePromptStreaming("test prompt", "flash-lite", jest.fn());
 
-        mockSpawn.mockReturnValue(mockProcess);
-        jest.spyOn(console, 'warn').mockImplementation(() => { });
+            expect(mockSpawn).toHaveBeenCalledWith("gemini", ['-m', 'flash-lite', '--yolo', '-p', 'test prompt'], expect.objectContaining({
+                shell: false
+            }));
 
-        const promise = strategy.executePrompt("test prompt");
+            const stdoutCallback = onStdoutData.mock.calls[0][1];
+            stdoutCallback(Buffer.from("result"));
+            callbacks.close(0);
 
-        const stdoutCallback = onStdoutData.mock.calls[0][1];
-        stdoutCallback(Buffer.from("Partial LLM output before crash"));
-        callbacks.close(1);
+            await promise;
+        });
 
-        const result = await promise;
-        expect(result).toBe("Partial LLM output before crash");
-    });
+        it("rejects with friendly error on ModelNotFoundError", async () => {
+            const onStdoutData = jest.fn();
+            const onStderrData = jest.fn();
+            const callbacks = {};
+            const mockProcess = {
+                stdout: { on: onStdoutData },
+                stderr: { on: onStderrData },
+                on: (event, cb) => { callbacks[event] = cb; }
+            };
 
-    it("rejects with friendly error on ModelNotFoundError", async () => {
-        const onStdoutData = jest.fn();
-        const onStderrData = jest.fn();
-        const callbacks = {};
-        const mockProcess = {
-            stdout: { on: onStdoutData },
-            stderr: { on: onStderrData },
-            on: (event, cb) => {
-                callbacks[event] = cb;
-            }
-        };
+            mockSpawn.mockReturnValue(mockProcess);
 
-        mockSpawn.mockReturnValue(mockProcess);
+            const promise = strategy.executePromptStreaming("test prompt", "bad-model", jest.fn());
 
-        const promise = strategy.executePrompt("test prompt", "bad-model");
+            const stderrCallback = onStderrData.mock.calls[0][1];
+            stderrCallback(Buffer.from("ModelNotFoundError: Requested entity was not found."));
+            callbacks.close(1);
 
-        const stderrCallback = onStderrData.mock.calls[0][1];
-        stderrCallback(Buffer.from("ModelNotFoundError: Requested entity was not found."));
-        callbacks.close(1);
+            await expect(promise).rejects.toThrow("Invalid model specified");
+        });
 
-        await expect(promise).rejects.toThrow("Invalid model specified");
+        it("does not set _hasSession on failure", async () => {
+            const onStdoutData = jest.fn();
+            const onStderrData = jest.fn();
+            const callbacks = {};
+            const mockProcess = {
+                stdout: { on: onStdoutData },
+                stderr: { on: onStderrData },
+                on: (event, cb) => { callbacks[event] = cb; }
+            };
+
+            mockSpawn.mockReturnValue(mockProcess);
+
+            const promise = strategy.executePromptStreaming("test", "", jest.fn());
+            const stderrCallback = onStderrData.mock.calls[0][1];
+            stderrCallback(Buffer.from("some error"));
+            callbacks.close(1);
+
+            await expect(promise).rejects.toThrow();
+            expect(strategy._hasSession).toBe(false);
+        });
     });
 
     describe("getModelArgs", () => {

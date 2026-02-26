@@ -11,6 +11,7 @@ export class OpenaiCodexStrategy extends BaseStrategy {
         super();
         this.activeAuthProcess = null;
         this.currentConnection = null;
+        this._hasSession = false;
     }
 
     executeAuth(connection) {
@@ -104,49 +105,6 @@ export class OpenaiCodexStrategy extends BaseStrategy {
         });
     }
 
-    executePrompt(prompt) {
-        return new Promise((resolve, reject) => {
-            const playgroundDir = path.resolve(process.cwd(), 'playground');
-            if (!fs.existsSync(playgroundDir)) {
-                fs.mkdirSync(playgroundDir, { recursive: true });
-            }
-
-            const codexProcess = spawn('codex', ['exec', '--yolo', prompt], {
-                env: { ...process.env },
-                cwd: playgroundDir,
-                shell: false
-            });
-
-            let outputResult = '';
-            let errorResult = '';
-
-            codexProcess.stdout.on('data', (data) => {
-                outputResult += data.toString();
-            });
-
-            codexProcess.stderr.on('data', (data) => {
-                errorResult += data.toString();
-            });
-
-            codexProcess.on('close', (code) => {
-                if (code !== 0) {
-                    console.warn(`Codex process exited with code ${code}`);
-                }
-                if (outputResult.trim()) {
-                    resolve(outputResult);
-                } else if (code !== 0) {
-                    reject(new Error(errorResult || `Process exited with code ${code}`));
-                } else {
-                    resolve(outputResult);
-                }
-            });
-
-            codexProcess.on('error', (err) => {
-                reject(err);
-            });
-        });
-    }
-
     executePromptStreaming(prompt, _model, onChunk) {
         return new Promise((resolve, reject) => {
             const playgroundDir = path.resolve(process.cwd(), 'playground');
@@ -154,7 +112,11 @@ export class OpenaiCodexStrategy extends BaseStrategy {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const codexProcess = spawn('codex', ['exec', '--yolo', prompt], {
+            const codexArgs = this._hasSession
+                ? ['exec', 'resume', '--last', '--yolo', prompt]
+                : ['exec', '--yolo', prompt];
+
+            const codexProcess = spawn('codex', codexArgs, {
                 env: { ...process.env },
                 cwd: playgroundDir,
                 shell: false
@@ -177,6 +139,7 @@ export class OpenaiCodexStrategy extends BaseStrategy {
                 if (code !== 0 && errorResult.trim()) {
                     reject(new Error(errorResult || `Process exited with code ${code}`));
                 } else {
+                    this._hasSession = true;
                     resolve();
                 }
             });

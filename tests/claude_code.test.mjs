@@ -158,8 +158,8 @@ describe("ClaudeCodeStrategy", () => {
         });
     });
 
-    describe("executePrompt", () => {
-        it("spawns claude -p with --dangerously-skip-permissions and --add-dir for playground subdirs", async () => {
+    describe("executePromptStreaming", () => {
+        it("does not include --continue on first call", async () => {
             const onStdoutData = jest.fn();
             const onStderrData = jest.fn();
             const callbacks = {};
@@ -177,29 +177,54 @@ describe("ClaudeCodeStrategy", () => {
             ]);
             mockSpawn.mockReturnValue(mockProcess);
 
-            const promise = strategy.executePrompt("test prompt");
-
-            expect(mockSpawn).toHaveBeenCalledWith(
-                "claude",
-                expect.arrayContaining([
-                    '-p', 'test prompt',
-                    '--dangerously-skip-permissions',
-                    '--add-dir', expect.stringContaining('repo1'),
-                    '--add-dir', expect.stringContaining('repo2')
-                ]),
-                expect.objectContaining({ shell: false })
-            );
+            const onChunk = jest.fn();
+            const promise = strategy.executePromptStreaming("test prompt", null, onChunk);
 
             const spawnArgs = mockSpawn.mock.calls[0][1];
-            expect(spawnArgs).not.toContain(expect.stringContaining('file.txt'));
+            expect(spawnArgs[0]).toBe('-p');
+            expect(spawnArgs).not.toContain('--continue');
 
             const stdoutCallback = onStdoutData.mock.calls[0][1];
             stdoutCallback(Buffer.from("Claude result here"));
+            expect(onChunk).toHaveBeenCalledWith("Claude result here");
 
             callbacks.close(0);
+            await promise;
+        });
 
-            const result = await promise;
-            expect(result).toBe("Claude result here");
+        it("includes --continue on subsequent calls after success", async () => {
+            const createMockProcess = () => {
+                const callbacks = {};
+                return {
+                    process: {
+                        stdout: { on: jest.fn((_, cb) => { callbacks.stdout = cb; }) },
+                        stderr: { on: jest.fn() },
+                        on: (event, cb) => { callbacks[event] = cb; }
+                    },
+                    callbacks
+                };
+            };
+
+            mockExistsSync.mockReturnValue(true);
+            mockReaddirSync.mockReturnValue([]);
+
+            const first = createMockProcess();
+            mockSpawn.mockReturnValue(first.process);
+            const p1 = strategy.executePromptStreaming("first", null, jest.fn());
+            first.callbacks.stdout(Buffer.from("ok"));
+            first.callbacks.close(0);
+            await p1;
+
+            const second = createMockProcess();
+            mockSpawn.mockReturnValue(second.process);
+            const p2 = strategy.executePromptStreaming("second", null, jest.fn());
+
+            const secondArgs = mockSpawn.mock.calls[1][1];
+            expect(secondArgs[0]).toBe('--continue');
+
+            second.callbacks.stdout(Buffer.from("ok"));
+            second.callbacks.close(0);
+            await p2;
         });
 
         it("works with empty playground directory", async () => {
@@ -216,7 +241,8 @@ describe("ClaudeCodeStrategy", () => {
             mockReaddirSync.mockReturnValue([]);
             mockSpawn.mockReturnValue(mockProcess);
 
-            const promise = strategy.executePrompt("test");
+            const onChunk = jest.fn();
+            const promise = strategy.executePromptStreaming("test", null, onChunk);
 
             expect(mockSpawn).toHaveBeenCalledWith(
                 "claude",
@@ -228,7 +254,7 @@ describe("ClaudeCodeStrategy", () => {
             stdoutCallback(Buffer.from("done"));
             callbacks.close(0);
 
-            await expect(promise).resolves.toBe("done");
+            await promise;
         });
     });
 

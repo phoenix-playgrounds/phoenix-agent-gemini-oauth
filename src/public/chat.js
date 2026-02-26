@@ -117,7 +117,13 @@
     function handleMessage(data) {
         if (data.type === "auth_status") {
             if (data.status === "authenticated") {
-                if (state !== STATES.AWAITING_RESPONSE) {
+                if (data.isProcessing) {
+                    transition(STATES.AWAITING_RESPONSE);
+                    if (!streamingElement) {
+                        streamingText = "";
+                        streamingElement = createStreamingRow();
+                    }
+                } else if (state !== STATES.AWAITING_RESPONSE) {
                     transition(STATES.AUTHENTICATED);
                 }
             } else {

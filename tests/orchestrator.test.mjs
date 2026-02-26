@@ -5,7 +5,6 @@ const mockExecuteAuth = jest.fn();
 const mockSubmitAuthCode = jest.fn();
 const mockCancelAuth = jest.fn();
 const mockClearCredentials = jest.fn();
-const mockExecutePrompt = jest.fn();
 const mockExecutePromptStreaming = jest.fn();
 const mockGetModelArgs = jest.fn().mockReturnValue([]);
 
@@ -16,7 +15,6 @@ jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
         submitAuthCode: mockSubmitAuthCode,
         cancelAuth: mockCancelAuth,
         clearCredentials: mockClearCredentials,
-        executePrompt: mockExecutePrompt,
         executePromptStreaming: mockExecutePromptStreaming,
         getModelArgs: mockGetModelArgs
     })
