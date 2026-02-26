@@ -29,6 +29,7 @@ ARG AGENT_PROVIDER=gemini
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init bash curl procps git \
+    jq less tree wget zip unzip openssh-client \
     && if [ "$AGENT_PROVIDER" = "claude_code" ]; then \
     apt-get install -y --no-install-recommends dbus gnome-keyring libsecret-1-0; \
     fi \
