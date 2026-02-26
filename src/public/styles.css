@@ -221,6 +221,16 @@ body {
     box-shadow: 0 0 16px var(--primary-dim);
 }
 
+.btn-danger {
+    background: var(--error);
+    color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+    filter: brightness(1.1);
+    box-shadow: 0 0 16px rgba(255, 107, 107, 0.4);
+}
+
 .btn-ghost {
     background: transparent;
     color: var(--base-content);

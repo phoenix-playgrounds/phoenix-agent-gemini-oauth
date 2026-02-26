@@ -121,6 +121,13 @@ export class ClaudeCodeStrategy extends BaseStrategy {
         console.log("Claude credentials cleared.");
     }
 
+    executeLogout(connection) {
+        connection.sendLogoutOutput("Clearing Claude Code credentials...\n");
+        this.clearCredentials();
+        this._hasSession = false;
+        connection.sendLogoutSuccess();
+    }
+
     checkAuthStatus() {
         return new Promise((resolve) => {
             const checkProcess = spawn('claude', ['-p', '', '--dangerously-skip-permissions'], {

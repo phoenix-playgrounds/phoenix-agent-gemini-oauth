@@ -15,6 +15,10 @@ export class BaseStrategy {
         throw new Error('Not implemented');
     }
 
+    executeLogout(_connection) {
+        throw new Error('Not implemented');
+    }
+
     checkAuthStatus() {
         throw new Error('Not implemented');
     }

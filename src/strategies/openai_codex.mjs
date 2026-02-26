@@ -98,6 +98,36 @@ export class OpenaiCodexStrategy extends BaseStrategy {
         console.log("Codex credentials cleared.");
     }
 
+    executeLogout(connection) {
+        const logoutProcess = spawn('codex', ['logout'], {
+            env: { ...process.env },
+            shell: false
+        });
+
+        const handleOutput = (data) => {
+            const text = data.toString();
+            console.log(`[CODEX LOGOUT]: ${text.trim()}`);
+            connection.sendLogoutOutput(text);
+        };
+
+        logoutProcess.stdout.on('data', handleOutput);
+        logoutProcess.stderr.on('data', handleOutput);
+
+        logoutProcess.on('close', (code) => {
+            console.log(`[CODEX] logout exited with code ${code}`);
+            this.clearCredentials();
+            this._hasSession = false;
+            connection.sendLogoutSuccess();
+        });
+
+        logoutProcess.on('error', (err) => {
+            console.error('[CODEX LOGOUT ERROR]:', err);
+            this.clearCredentials();
+            this._hasSession = false;
+            connection.sendLogoutSuccess();
+        });
+    }
+
     checkAuthStatus() {
         return new Promise((resolve) => {
             if (fs.existsSync(CODEX_AUTH_FILE)) {

@@ -46,6 +46,8 @@ export class Orchestrator extends EventEmitter {
             this._handleCancelAuth();
         } else if (action === "reauthenticate") {
             await this._handleReauthenticate();
+        } else if (action === "logout") {
+            this._handleLogout();
         } else if (action === "send_chat_message") {
             await this._handleChatMessage(msg.text);
         } else if (action === "get_model") {
@@ -110,6 +112,16 @@ export class Orchestrator extends EventEmitter {
         this.strategy.executeAuth(connection);
     }
 
+    _handleLogout() {
+        console.log("[Orchestrator] logout");
+        this.strategy.cancelAuth();
+        this.isAuthenticated = false;
+        this.isProcessing = false;
+        this._send("auth_status", { status: "unauthenticated", isProcessing: false });
+        const connection = this._createLogoutBridge();
+        this.strategy.executeLogout(connection);
+    }
+
     async _handleChatMessage(text) {
         if (!this.isAuthenticated) {
             this._send("error", { message: "NEED_AUTH" });
@@ -158,6 +170,17 @@ export class Orchestrator extends EventEmitter {
                 this._send("auth_success");
             },
             sendAuthStatus: (status) => this._send("auth_status", { status }),
+            sendError: (message) => this._send("error", { message })
+        };
+    }
+
+    _createLogoutBridge() {
+        return {
+            sendLogoutOutput: (text) => this._send("logout_output", { text }),
+            sendLogoutSuccess: () => {
+                this.isAuthenticated = false;
+                this._send("logout_success");
+            },
             sendError: (message) => this._send("error", { message })
         };
     }

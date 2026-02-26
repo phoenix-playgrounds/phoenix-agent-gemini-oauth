@@ -112,6 +112,36 @@ export class GeminiStrategy extends BaseStrategy {
         console.log("Gemini credentials cleared.");
     }
 
+    executeLogout(connection) {
+        const logoutProcess = spawn('gemini', ['auth', 'logout'], {
+            env: { ...process.env },
+            shell: false
+        });
+
+        const handleOutput = (data) => {
+            const text = data.toString();
+            console.log(`[GEMINI LOGOUT]: ${text.trim()}`);
+            connection.sendLogoutOutput(text);
+        };
+
+        logoutProcess.stdout.on('data', handleOutput);
+        logoutProcess.stderr.on('data', handleOutput);
+
+        logoutProcess.on('close', (code) => {
+            console.log(`[GEMINI] logout exited with code ${code}`);
+            this.clearCredentials();
+            this._hasSession = false;
+            connection.sendLogoutSuccess();
+        });
+
+        logoutProcess.on('error', (err) => {
+            console.error('[GEMINI LOGOUT ERROR]:', err);
+            this.clearCredentials();
+            this._hasSession = false;
+            connection.sendLogoutSuccess();
+        });
+    }
+
     checkAuthStatus() {
         return new Promise((resolve) => {
             console.log("[GEMINI DEBUG] Starting checkAuthStatus process");

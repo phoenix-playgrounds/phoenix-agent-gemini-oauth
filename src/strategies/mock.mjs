@@ -20,6 +20,14 @@ export class MockStrategy extends BaseStrategy {
         console.log("[MOCK] clearCredentials: Skipping credential deletion");
     }
 
+    executeLogout(connection) {
+        console.log("[MOCK] executeLogout: Mocking logout in 500ms");
+        connection.sendLogoutOutput("Logging out (mock)...\n");
+        setTimeout(() => {
+            connection.sendLogoutSuccess();
+        }, 500);
+    }
+
     checkAuthStatus() {
         console.log("[MOCK] checkAuthStatus: Returning true");
         return Promise.resolve(true);

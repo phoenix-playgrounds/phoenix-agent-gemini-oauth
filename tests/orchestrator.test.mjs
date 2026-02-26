@@ -7,6 +7,7 @@ const mockCancelAuth = jest.fn();
 const mockClearCredentials = jest.fn();
 const mockExecutePromptStreaming = jest.fn();
 const mockGetModelArgs = jest.fn().mockReturnValue([]);
+const mockExecuteLogout = jest.fn();
 
 jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
     resolveStrategy: () => ({
@@ -16,7 +17,8 @@ jest.unstable_mockModule("../src/strategies/index.mjs", () => ({
         cancelAuth: mockCancelAuth,
         clearCredentials: mockClearCredentials,
         executePromptStreaming: mockExecutePromptStreaming,
-        getModelArgs: mockGetModelArgs
+        getModelArgs: mockGetModelArgs,
+        executeLogout: mockExecuteLogout
     })
 }));
 
@@ -130,6 +132,43 @@ describe("Orchestrator", () => {
             expect(mockClearCredentials).toHaveBeenCalled();
             expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated", isProcessing: false }]);
             expect(mockExecuteAuth).toHaveBeenCalled();
+        });
+    });
+
+    describe("logout", () => {
+        it("cancels auth, sets unauthenticated, and calls executeLogout", async () => {
+            orchestrator.isAuthenticated = true;
+            await orchestrator.handleClientMessage({ action: "logout" });
+            expect(mockCancelAuth).toHaveBeenCalled();
+            expect(orchestrator.isAuthenticated).toBe(false);
+            expect(orchestrator.isProcessing).toBe(false);
+            expect(outboundMessages).toEqual([{ type: "auth_status", status: "unauthenticated", isProcessing: false }]);
+            expect(mockExecuteLogout).toHaveBeenCalledWith(expect.objectContaining({
+                sendLogoutOutput: expect.any(Function),
+                sendLogoutSuccess: expect.any(Function),
+                sendError: expect.any(Function)
+            }));
+        });
+
+        it("sendLogoutSuccess emits logout_success and sets isAuthenticated false", async () => {
+            orchestrator.isAuthenticated = true;
+            mockExecuteLogout.mockImplementation((conn) => {
+                conn.sendLogoutSuccess();
+            });
+            await orchestrator.handleClientMessage({ action: "logout" });
+            const logoutMsg = outboundMessages.find(m => m.type === "logout_success");
+            expect(logoutMsg).toBeDefined();
+            expect(orchestrator.isAuthenticated).toBe(false);
+        });
+
+        it("sendLogoutOutput emits logout_output", async () => {
+            mockExecuteLogout.mockImplementation((conn) => {
+                conn.sendLogoutOutput("Logging out...\n");
+            });
+            await orchestrator.handleClientMessage({ action: "logout" });
+            const outputMsg = outboundMessages.find(m => m.type === "logout_output");
+            expect(outputMsg).toBeDefined();
+            expect(outputMsg.text).toBe("Logging out...\n");
         });
     });
 
