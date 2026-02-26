@@ -217,6 +217,12 @@ export class GeminiStrategy extends BaseStrategy {
                     return;
                 }
 
+                const rateLimited = errorResult.includes('RESOURCE_EXHAUSTED') || errorResult.includes('MODEL_CAPACITY_EXHAUSTED') || errorResult.includes('status 429');
+                if (rateLimited && !outputResult.trim()) {
+                    reject(new Error(`Model is currently overloaded (rate limited). Please try again in a few minutes or switch to a different model.`));
+                    return;
+                }
+
                 if (code === 0 || outputResult.trim()) {
                     if (code !== 0) {
                         console.warn(`[GEMINI] Non-zero exit (${code}) but returning collected output`);
