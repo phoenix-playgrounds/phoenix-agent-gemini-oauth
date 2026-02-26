@@ -16,6 +16,7 @@ const run = async () => {
             ...process.env,
             PATH: `${process.cwd()}/tests/bin:${process.env.PATH}`,
             AGENT_PROVIDER: "mock",
+            AGENT_PASSWORD: "testpassword123",
             CHAT_PORT: String(CHAT_PORT)
         }
     });
@@ -27,7 +28,11 @@ const run = async () => {
 
     console.log("Connecting WebSocket...");
     const { WebSocket } = await import("ws");
-    const ws = new WebSocket(`ws://localhost:${CHAT_PORT}/ws`);
+    const ws = new WebSocket(`ws://localhost:${CHAT_PORT}/ws`, {
+        headers: {
+            Cookie: "agent_auth=testpassword123"
+        }
+    });
 
     const messages = [];
 
@@ -54,11 +59,33 @@ const run = async () => {
     console.log("Sending chat message...");
     ws.send(JSON.stringify({ action: "send_chat_message", text: "hello world" }));
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log("Waiting for response stream to complete...");
+    await new Promise((resolve) => {
+        const checkStreamEnd = (raw) => {
+            const data = JSON.parse(raw.toString());
+            if (data.type === "stream_end") {
+                ws.off("message", checkStreamEnd);
+                resolve();
+            }
+        };
+        ws.on("message", checkStreamEnd);
+    });
 
-    const chatResponse = messages.find((m) => m.type === "message" && m.role === "assistant");
+    console.log("Fetching message history from API...");
+    const fetchApi = await import("http");
+    const getMessages = () => new Promise((resolve, reject) => {
+        fetchApi.get(`http://localhost:${CHAT_PORT}/api/messages`, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => resolve(JSON.parse(data)));
+        }).on('error', reject);
+    });
+
+    const apiMessages = await getMessages();
+    const chatResponse = apiMessages.find((m) => m.role === "assistant");
+
     if (!chatResponse || !chatResponse.body) {
-        throw new Error(`Expected message with role=assistant, got: ${JSON.stringify(messages)}`);
+        throw new Error(`Expected message with role=assistant, got: ${JSON.stringify(apiMessages)}`);
     }
     console.log(`✅ Chat response: ${chatResponse.body}`);
     if (!chatResponse.id || !chatResponse.created_at) {

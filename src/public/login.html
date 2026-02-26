@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant - Login</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #64748b;
+            --text-heading: #94a3b8;
+            --input-bg: #1e293b;
+            --input-border: #1e293b;
+            --input-text: #94a3b8;
+            --input-placeholder: #475569;
+            --btn-bg: #7480ff;
+            --btn-text: #0f172a;
+            --radius-xl: 12px;
+            --radius-md: 8px;
+            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--bg-page);
+        }
+
+        .login-box {
+            background-color: var(--bg-card);
+            border-radius: var(--radius-xl);
+            padding: 3rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .login-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .login-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            background-color: #1a1e26;
+            color: #8b5cf6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+        }
+
+        .login-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: currentColor;
+            fill: none;
+        }
+
+        .login-title {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-heading);
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-label {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #d1d5db;
+            /* Light gray for contrast against white, per image */
+        }
+
+        .input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            font-family: inherit;
+            font-size: 0.95rem;
+            background-color: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-md);
+            color: var(--input-text);
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .input::placeholder {
+            color: var(--input-placeholder);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .input:focus {
+            border-color: var(--btn-bg);
+            box-shadow: 0 0 0 2px rgba(116, 128, 255, 0.2);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.1);
+        }
+
+        #loginError {
+            display: none;
+            color: #ef4444;
+            font-size: 0.875rem;
+            background-color: rgba(239, 68, 68, 0.1);
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--radius-md);
+            margin-bottom: -1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-box">
+        <div class="login-header">
+            <div class="login-icon">
+                <svg viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+            </div>
+            <h3 class="login-title">Agent Authentication</h3>
+        </div>
+
+        <div id="loginError"></div>
+
+        <form class="login-form" id="loginForm">
+            <div class="input-group">
+                <label for="password" class="input-label">Playground Internal Password</label>
+                <input type="password" id="password" class="input" placeholder="Enter password to continue" required>
+            </div>
+            <button type="submit" class="btn-primary">Login</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('loginError');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    window.location.href = '/';
+                } else {
+                    errorEl.textContent = data.error || 'Authentication failed';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>
