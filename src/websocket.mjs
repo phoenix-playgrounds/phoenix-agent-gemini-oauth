@@ -21,12 +21,17 @@ export class Orchestrator extends EventEmitter {
     }
 
     async _initAuthStatus() {
+        const previousState = this.isAuthenticated;
         this.isAuthenticated = await this.strategy.checkAuthStatus();
+
+        if (this.isAuthenticated !== previousState) {
+            this._send("auth_status", {
+                status: this.isAuthenticated ? "authenticated" : "unauthenticated",
+                isProcessing: this.isProcessing
+            });
+        }
     }
 
-    async _initAuthStatus() {
-        this.isAuthenticated = await this.strategy.checkAuthStatus();
-    }
 
     async handleClientMessage(msg) {
         const action = msg.action;
