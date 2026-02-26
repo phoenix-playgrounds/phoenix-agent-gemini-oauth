@@ -111,7 +111,7 @@ export class OpenaiCodexStrategy extends BaseStrategy {
                 fs.mkdirSync(playgroundDir, { recursive: true });
             }
 
-            const codexProcess = spawn('codex', ['exec', '--full-auto', prompt], {
+            const codexProcess = spawn('codex', ['exec', '--yolo', prompt], {
                 env: { ...process.env },
                 cwd: playgroundDir,
                 shell: false

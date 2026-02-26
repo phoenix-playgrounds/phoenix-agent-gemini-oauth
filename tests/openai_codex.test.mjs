@@ -109,7 +109,7 @@ describe("OpenaiCodexStrategy", () => {
 
         const promise = strategy.executePrompt("test prompt");
 
-        expect(mockSpawn).toHaveBeenCalledWith("codex", ["exec", "--full-auto", "test prompt"], expect.objectContaining({
+        expect(mockSpawn).toHaveBeenCalledWith("codex", ["exec", "--yolo", "test prompt"], expect.objectContaining({
             shell: false
         }));
 
