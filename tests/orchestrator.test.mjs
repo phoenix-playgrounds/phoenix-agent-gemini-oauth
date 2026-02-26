@@ -49,15 +49,16 @@ describe("Orchestrator", () => {
     let orchestrator;
     let outboundMessages;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         jest.clearAllMocks();
         jest.spyOn(console, "log").mockImplementation(() => { });
         jest.spyOn(console, "warn").mockImplementation(() => { });
         jest.spyOn(console, "error").mockImplementation(() => { });
         mockModelValue = "";
 
-        outboundMessages = [];
         orchestrator = new Orchestrator();
+        await orchestrator._ready;
+        outboundMessages = [];
         orchestrator.on("outbound", (type, data) => {
             outboundMessages.push({ type, ...data });
         });
