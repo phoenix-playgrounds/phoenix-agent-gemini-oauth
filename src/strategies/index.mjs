@@ -6,9 +6,9 @@ import { OpencodeStrategy } from "./opencode.mjs";
 
 const PROVIDERS = {
     gemini: GeminiStrategy,
-    claude_code: ClaudeCodeStrategy,
-    openai_codex: OpenaiCodexStrategy,
-    opencode: OpencodeStrategy,
+    "claude-code": ClaudeCodeStrategy,
+    "openai-codex": OpenaiCodexStrategy,
+    opencodex: OpencodeStrategy,
     mock: MockStrategy
 };
 
